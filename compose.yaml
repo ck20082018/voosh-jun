@@ -1,0 +1,5 @@
+services:
+  factory-demo:
+    build: .
+    ports:
+      - "127.0.0.1:${DEMO_PORT:-8081}:80"
