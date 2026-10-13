@@ -4,12 +4,12 @@ export interface DrawingPlacement {readonly nodeId:string;readonly x:number;read
 export interface WorkshopDrawingData {
   readonly grid:{readonly width:number;readonly height:number};
   readonly placements:readonly DrawingPlacement[];
-  readonly nodes:readonly {readonly id:string;readonly type:string}[];
+  readonly nodes:readonly {readonly id:string;readonly type:string;readonly shape?:string;readonly diameter?:number;readonly length?:number;readonly width?:number;readonly height?:number;readonly machineKind?:string}[];
   readonly selected:string|null;
   readonly production?:{
     readonly stage:string;readonly selected:string|null;readonly target:string|null;
-    readonly blank:{readonly id:string;readonly diameter:number;readonly length:number};
-    readonly part:null|{readonly sections:readonly {readonly diameter:number;readonly length:number}[]};
+    readonly blank:{readonly id:string;readonly shape?:string;readonly diameter?:number;readonly length:number;readonly width?:number;readonly height?:number};
+    readonly part:null|{readonly shape?:string;readonly length?:number;readonly width?:number;readonly height?:number;readonly sections:readonly {readonly diameter:number;readonly length:number}[]};
   };
 }
 
@@ -29,6 +29,18 @@ export class WorkshopDrawing {
     this.poly([x+w-d,y+2*d-h,x+w,y+d-h,x+w,y+d,x+w-d,y+2*d],side);
   }
   private cylinder(x:number,y:number,length:number,r:number,finished:boolean){
+    const blank=this.view.production?.blank??this.view.nodes.find(n=>n.type==='blank');
+    if(blank?.shape==='block'){
+      const data=finished?this.view.production?.part??blank:blank;
+      // The same millimetre scale is used before and after milling, so removed height stays visible.
+      const ratio=(actual:number|undefined,original:number|undefined,fallback:number)=>Number.isFinite(actual)&&Number(original)>0?Number(actual)/Number(original):fallback;
+      const h=14*ratio(data?.height,blank.height,1);
+      const w=length*ratio(data?.length,blank.length,1),d=12*ratio(data?.width,blank.width,1);
+      this.box(x,y,w,d,h,0xd6e1e2,0x9db0b9,0x6e8794);
+      if(this.view.production?.stage==='processing')this.g.lineStyle(2,0xfff3c8).lineBetween(x,y-h,x+w,y+d-h);
+      return;
+    }
+
     const segment=(sx:number,sy:number,l:number,radius:number)=>{
       this.poly([sx,sy-radius,sx+l,sy-radius+l*.24,sx+l,sy+radius+l*.24,sx,sy+radius],0x9db0b9);
       this.g.fillStyle(0xd6e1e2).fillEllipse(sx,sy,radius*.8,radius*2);
@@ -73,6 +85,15 @@ export class WorkshopDrawing {
       this.box(x-32,y+8,9,5,47,0xae9870,0x8e7d59,0x73694d);this.box(x+25,y+24,9,5,47,0xae9870,0x8e7d59,0x73694d);
       this.box(x-27,y-8,75,22,10,0xd0b98e,0xb49b75,0x938263);
       if(!production||s?.stage==='table')this.cylinder(x-18,y-34,46,9,false);
+    }else if(n.type==='lathe'&&n.machineKind==='mill'){
+      this.box(x-28,y+5,78,24,42,0x83a493,0x618473,0x486b60);
+      this.box(x-32,y-32,88,25,12,0xb0c5b5,0x7a9b87,0x678877);
+      this.box(x+30,y-31,22,16,80,0x93b2a0,0x6b927f,0x527564);
+      this.box(x-5,y-99,58,16,14,0xb0c5b5,0x7a9b87,0x678877);
+      this.g.lineStyle(7,0x405b52).lineBetween(x+9,y-99,x+9,y-72);
+      this.g.fillStyle(0x6e8794).fillEllipse(x+9,y-72,18,8);
+      if(s?.stage==='loaded'||s?.stage==='processing'||s?.stage==='finished')this.cylinder(x-19,y-55,45,9,!!s.part);
+      if(s?.stage==='processing')this.g.lineStyle(2,0xd9bd61).strokeEllipse(x+9,y-72,22+Math.sin(this.phase)*3,10);
     }else if(n.type==='lathe'){
       this.box(x-28,y+5,78,24,42,0x83a493,0x618473,0x486b60);
       this.box(x-37,y-31,99,27,14,0xb0c5b5,0x7a9b87,0x678877);

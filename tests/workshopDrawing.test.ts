@@ -46,3 +46,15 @@ test('drawing moves the single part between table, machine and warehouse and dec
   }
   assert.deepEqual(projectCell(2,1),{x:568,y:245});
 });
+
+test('milled block uses the actual reduced height and there is only one part on the warehouse',()=>{
+ const base:WorkshopDrawingData={grid:{width:3,height:1},selected:null,nodes:[{id:'blank',type:'blank',shape:'block',length:60,width:40,height:20},{id:'machine',type:'lathe',machineKind:'mill'},{id:'store',type:'warehouse'}],placements:[{nodeId:'blank',x:0,y:0},{nodeId:'machine',x:1,y:0},{nodeId:'store',x:2,y:0}]};
+ const first=recordingGraphics(),last=recordingGraphics();
+ new WorkshopDrawing(first.graphics).render(freeze({...base,production:{stage:'loaded',selected:null,target:null,blank:{id:'blank',shape:'block',length:60,width:40,height:20},part:null}}),0);
+ new WorkshopDrawing(last.graphics).render(freeze({...base,production:{stage:'finished',selected:null,target:null,blank:{id:'blank',shape:'block',length:60,width:40,height:20},part:{shape:'block',length:60,width:40,height:15,sections:[]}}}),0);
+ // Locate the top face of the metal block by its unique fill colour.
+ const top=(calls:typeof first.calls)=>calls[calls.findIndex(c=>c.name==='fillStyle'&&c.args[0]===0xd6e1e2)+1].args[0];
+ assert.equal(top(last.calls)[0].y-top(first.calls)[0].y,3.5);assert.equal(top(last.calls)[1].x-top(last.calls)[0].x,45);
+ const stored=recordingGraphics();new WorkshopDrawing(stored.graphics).render(freeze({...base,production:{stage:'stored',selected:null,target:null,blank:{id:'blank',shape:'block',length:60,width:40,height:20},part:{shape:'block',length:60,width:40,height:15,sections:[]}}}),0);
+ assert.equal(stored.calls.filter(c=>c.name==='fillStyle'&&c.args[0]===0xd6e1e2).length,1);
+});
