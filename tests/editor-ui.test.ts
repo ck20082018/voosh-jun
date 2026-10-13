@@ -44,7 +44,7 @@ async function settle(){await act(async()=>{await new Promise(resolve=>setTimeou
 
 test('editor UI: the start node and its outgoing SVG line both move on a mouse drag',async()=>{
   const view=render(createElement(App));await settle();
-  await waitFor(()=>assert.equal(view.container.querySelectorAll('.react-flow__node').length,10));
+  await waitFor(()=>assert.equal(view.container.querySelectorAll('.react-flow__node').length,11));
   const node=view.getByTestId('rf__node-start');
   await waitFor(()=>assert.equal(node.style.visibility,'visible'));
   const edge=view.getByTestId('rf__edge-start-out-intro-in');
@@ -72,11 +72,13 @@ test('editor UI: nodes can be added to an empty project from the library',async(
 
 test('editor UI: every node type moves its connected lines when dragged by its heading',async()=>{
   const view=render(createElement(App));await settle();
-  const ids=['start','intro','blank','tool','turning','lathe','warehouse','task','wait','finish'];
+  fireEvent.click(view.getByRole('button',{name:'Проверка выбора'}));await settle();
+  const ids=['start','intro','blank','tool','process','part','lathe','warehouse','task','wait','check','finish'];
+  const sample=(await import('../src/level')).checkLevel();
   for(const id of ids){
     const node=view.getByTestId(`rf__node-${id}`);
     const edges=[...view.container.querySelectorAll('.react-flow__edge')].filter(edge=>{
-      const edgeId=edge.getAttribute('data-id')??'';return edgeId.startsWith(`${id}-`)||edgeId.endsWith(`-${id}-in`)||edgeId.includes(`-${id}-`);
+      const definition=sample.edges.find(e=>e.id===edge.getAttribute('data-id'));return definition?.source===id||definition?.target===id;
     });
     assert.ok(edges.length>0,`${id} must have a connection`);
     const before=edges.map(edge=>edge.querySelector('.react-flow__edge-path')!.getAttribute('d'));
@@ -110,7 +112,7 @@ test('editor UI: an unfinished custom level can be saved and restored after relo
   fireEvent.change(view.getByLabelText('Название'),{target:{value:'Моя заготовка'}});
   fireEvent.click(view.getByRole('button',{name:'Сохранить'}));await settle();
   assert.ok(view.container.textContent?.includes('Черновик сохранён'));
-  const stored=JSON.parse(localStorage.getItem('factory-level-v1')!);
+  const stored=JSON.parse(localStorage.getItem('factory-level-v2')!);
   assert.equal(stored.nodes.length,1);assert.equal(stored.nodes[0].params.name,'Моя заготовка');assert.equal('measured' in stored.nodes[0],false);
   cleanup();view=render(createElement(App));await settle();
   assert.equal(view.container.querySelectorAll('.react-flow__node').length,1);
@@ -120,9 +122,9 @@ test('editor UI: an unfinished custom level can be saved and restored after relo
 test('editor UI: dragging from an output handle to a free input creates and saves an execution edge',async()=>{
   const {exampleLevel}=await import('../src/level');
   const project=exampleLevel();project.edges=project.edges.filter(edge=>edge.id!=='start-out-intro-in');
-  localStorage.setItem('factory-level-v1',JSON.stringify(project));
+  localStorage.setItem('factory-level-v2',JSON.stringify(project));
   const view=render(createElement(App));await settle();
-  assert.equal(view.container.querySelectorAll('.react-flow__edge').length,10);
+  assert.equal(view.container.querySelectorAll('.react-flow__edge').length,9);
   const source=view.getByTestId('rf__node-start').querySelector<HTMLElement>('.source[data-handleid="out"]')!;
   const target=view.getByTestId('rf__node-intro').querySelector<HTMLElement>('.target[data-handleid="in"]')!;
   Object.defineProperty(document,'elementFromPoint',{value:()=>target,configurable:true});
@@ -130,36 +132,73 @@ test('editor UI: dragging from an output handle to a free input creates and save
   fireEvent.mouseDown(source,{clientX:sourceRect.left+4,clientY:sourceRect.top+4,button:0,buttons:1,view:dom.window});
   fireEvent.mouseMove(document,{clientX:targetRect.left+4,clientY:targetRect.top+4,buttons:1,view:dom.window});await settle();
   fireEvent.mouseUp(document,{clientX:targetRect.left+4,clientY:targetRect.top+4,button:0,view:dom.window});await settle();
-  assert.equal(view.container.querySelectorAll('.react-flow__edge').length,11);
+  assert.equal(view.container.querySelectorAll('.react-flow__edge').length,10);
   fireEvent.click(view.getByRole('button',{name:'Сохранить'}));await settle();
-  const stored=JSON.parse(localStorage.getItem('factory-level-v1')!);
+  const stored=JSON.parse(localStorage.getItem('factory-level-v2')!);
   assert.equal(stored.edges.filter((edge:{source:string;target:string})=>edge.source==='start'&&edge.target==='intro').length,1);
   Object.defineProperty(document,'elementFromPoint',{value:()=>null,configurable:true});
 });
 
 test('editor UI: welcome example runs without a workshop and can be completed',async()=>{
  const view=render(createElement(App));await settle();fireEvent.click(view.getByRole('button',{name:'Приветствие'}));await settle();
- assert.equal(view.container.querySelectorAll('.react-flow__node').length,3);fireEvent.click(view.getByRole('button',{name:'▶ Протестировать'}));await settle();assert.ok(view.container.textContent?.includes('Добро пожаловать!'));assert.equal(view.container.querySelector('canvas'),null);fireEvent.click(view.getByRole('button',{name:'Начать →'}));await settle();assert.ok(view.container.textContent?.includes('Знакомство завершено.'));
+ assert.equal(view.container.querySelectorAll('.react-flow__node').length,3);fireEvent.click(view.getByRole('button',{name:'▶ Протестировать'}));await settle();assert.ok(view.container.textContent?.includes('Добро пожаловать!'));assert.equal(view.container.querySelector('canvas'),null);fireEvent.click(view.getByRole('button',{name:'Продолжить →'}));await settle();assert.ok(view.container.textContent?.includes('Знакомство завершено.'));
 });
 test('editor UI: labels create a connection without hitting a small handle; duplicates are rejected',async()=>{
- const {welcomeLevel}=await import('../src/level');const level=welcomeLevel();level.edges=[];localStorage.setItem('factory-level-v1',JSON.stringify(level));
+ const {welcomeLevel}=await import('../src/level');const level=welcomeLevel();level.edges=[];localStorage.setItem('factory-level-v2',JSON.stringify(level));
  const view=render(createElement(App));await settle();fireEvent.click(view.getByRole('button',{name:'Выход Далее: Начало уровня'}));fireEvent.click(view.getByRole('button',{name:'Вход Выполнение: Вступление'}));await settle();assert.equal(view.container.querySelectorAll('.react-flow__edge').length,1);
  fireEvent.click(view.getByRole('button',{name:'Выход Далее: Начало уровня'}));fireEvent.click(view.getByRole('button',{name:'Вход Выполнение: Вступление'}));await settle();assert.equal(view.container.querySelectorAll('.react-flow__edge').length,1);assert.ok(view.container.textContent?.includes('Эта связь уже существует'));
- fireEvent.click(view.getByRole('button',{name:'Сохранить'}));const stored=JSON.parse(localStorage.getItem('factory-level-v1')!);assert.equal(stored.edges.length,1);
+ fireEvent.click(view.getByRole('button',{name:'Сохранить'}));const stored=JSON.parse(localStorage.getItem('factory-level-v2')!);assert.equal(stored.edges.length,1);
 });
 test('editor UI: connection builder creates a data edge via dropdowns',async()=>{
- const {exampleLevel}=await import('../src/level');const level=exampleLevel();level.edges=level.edges.filter(edge=>edge.target!=='turning');localStorage.setItem('factory-level-v1',JSON.stringify(level));
+ const {exampleLevel}=await import('../src/level');const level=exampleLevel();level.edges=level.edges.filter(edge=>!(edge.target==='lathe'&&edge.targetHandle==='blank'));localStorage.setItem('factory-level-v2',JSON.stringify(level));
  const view=render(createElement(App));await settle();fireEvent.click(view.getByRole('button',{name:'+ Добавить связь'}));
  fireEvent.change(view.getByLabelText('Выход новой связи'),{target:{value:JSON.stringify(['blank','blank'])}});fireEvent.click(view.getByRole('button',{name:'Создать связь'}));await settle();
- assert.equal(view.container.querySelectorAll('.react-flow__edge').length,11);fireEvent.click(view.getByRole('button',{name:'Сохранить'}));assert.equal(JSON.parse(localStorage.getItem('factory-level-v1')!).edges.filter((edge:{source:string;target:string})=>edge.source==='blank'&&edge.target==='turning').length,1);
+ assert.equal(view.container.querySelectorAll('.react-flow__edge').length,10);fireEvent.click(view.getByRole('button',{name:'Сохранить'}));assert.equal(JSON.parse(localStorage.getItem('factory-level-v2')!).edges.filter((edge:{source:string;target:string})=>edge.source==='blank'&&edge.target==='lathe').length,1);
 });
-test('editor UI: node size can be changed in properties and survives reload',async()=>{
- let view=render(createElement(App));await settle();const outgoing=view.getByTestId('rf__edge-intro-out-task-in').querySelector('.react-flow__edge-path')!;const previousPath=outgoing.getAttribute('d');fireEvent.click(view.getByTestId('rf__node-intro'));
- fireEvent.change(view.getByLabelText('Ширина ноды'),{target:{value:'430'}});fireEvent.change(view.getByLabelText('Высота ноды'),{target:{value:'290'}});await settle();
- assert.equal(view.getByTestId('rf__node-intro').style.width,'430px');assert.notEqual(outgoing.getAttribute('d'),previousPath,'port endpoint must update after resizing');fireEvent.click(view.getByRole('button',{name:'Сохранить'}));assert.deepEqual(JSON.parse(localStorage.getItem('factory-level-v1')!).nodes.find((n:{id:string})=>n.id==='intro').size,{width:430,height:290});
- cleanup();view=render(createElement(App));await settle();assert.equal(view.getByTestId('rf__node-intro').style.width,'430px');
+test('editor UI: border resizing updates the port endpoint, persists and has no size property fields',async()=>{
+ let view=render(createElement(App));await settle();fireEvent.click(view.getByTestId('rf__node-intro'));await settle();
+ assert.equal(view.queryByLabelText('Ширина ноды'),null);assert.equal(view.queryByLabelText('Высота ноды'),null);
+ const outgoing=view.getByTestId('rf__edge-intro-out-task-in').querySelector('.react-flow__edge-path')!;const previousPath=outgoing.getAttribute('d');
+ const grip=view.getByTestId('rf__node-intro').querySelector('.react-flow__resize-control.bottom.right')!;assert.ok(grip);
+ fireEvent.mouseDown(grip,{clientX:500,clientY:200,button:0,buttons:1,view:dom.window});
+ fireEvent.mouseMove(dom.window as unknown as Window,{clientX:700,clientY:290,buttons:1,view:dom.window});await settle();
+ fireEvent.mouseUp(dom.window as unknown as Window,{clientX:700,clientY:290,button:0,view:dom.window});await settle();
+ const width=view.getByTestId('rf__node-intro').style.width;assert.notEqual(width,'230px');assert.notEqual(outgoing.getAttribute('d'),previousPath);
+ fireEvent.click(view.getByRole('button',{name:'Сохранить'}));const stored=JSON.parse(localStorage.getItem('factory-level-v2')!);assert.ok(stored.nodes.find((n:{id:string})=>n.id==='intro').size.width>230);
+ cleanup();view=render(createElement(App));await settle();assert.equal(view.getByTestId('rf__node-intro').style.width,width);
 });
 
 test('editor UI: deleting a node cleans up its clickable ports and does not crash the editor',async()=>{
- const view=render(createElement(App));await settle();fireEvent.click(view.getByTestId('rf__node-intro'));fireEvent.click(view.getByRole('button',{name:'Удалить ноду'}));await settle();assert.equal(view.container.querySelectorAll('.react-flow__node').length,9);assert.equal(view.queryByTestId('rf__node-intro'),null);
+ const view=render(createElement(App));await settle();fireEvent.click(view.getByTestId('rf__node-intro'));fireEvent.click(view.getByRole('button',{name:'Удалить ноду'}));await settle();assert.equal(view.container.querySelectorAll('.react-flow__node').length,10);assert.equal(view.queryByTestId('rf__node-intro'),null);
+});
+
+test('editor UI: shape fields, tool categories and operation add/reorder/delete use real controls',async()=>{
+ const view=render(createElement(App));await settle();fireEvent.click(view.getByTestId('rf__node-blank'));
+ assert.ok(view.getByLabelText('Диаметр, мм'));assert.equal(view.queryByLabelText('Ширина, мм'),null);
+ fireEvent.change(view.getByLabelText('Форма'),{target:{value:'block'}});assert.equal(view.queryByLabelText('Диаметр, мм'),null);assert.ok(view.getByLabelText('Ширина, мм'));assert.ok(view.getByLabelText('Высота, мм'));
+ fireEvent.click(view.getByTestId('rf__node-tool'));fireEvent.change(view.getByLabelText('Категория'),{target:{value:'milling'}});assert.equal((view.getByLabelText('Инструмент') as HTMLSelectElement).value,'face');assert.equal(view.queryByRole('option',{name:/Проходной/}),null);
+ fireEvent.click(view.getByTestId('rf__node-process'));fireEvent.click(view.getByRole('button',{name:'+ Фрезерование плоскости'}));fireEvent.click(view.getByRole('button',{name:'Переместить операцию 2 вверх'}));fireEvent.click(view.getByRole('button',{name:'Сохранить'}));
+ let saved=JSON.parse(localStorage.getItem('factory-level-v2')!);assert.deepEqual(saved.nodes.find((n:{id:string})=>n.id==='process').params.operations.map((o:{kind:string})=>o.kind),['milling','turning']);
+ fireEvent.click(view.getByRole('button',{name:'Удалить операцию 2'}));fireEvent.click(view.getByRole('button',{name:'Сохранить'}));saved=JSON.parse(localStorage.getItem('factory-level-v2')!);assert.equal(saved.nodes.find((n:{id:string})=>n.id==='process').params.operations.length,1);
+ fireEvent.click(view.getByTestId('rf__node-task'));assert.equal(view.getByTestId('rf__node-task').querySelectorAll('.react-flow__handle.target').length,1);
+});
+
+test('editor UI: explicit result copy happens once and independent fields survive process edits',async()=>{
+ const view=render(createElement(App));await settle();fireEvent.click(view.getByTestId('rf__node-process'));fireEvent.change(view.getByLabelText('Операции 1: diameter'),{target:{value:10}});
+ fireEvent.click(view.getByTestId('rf__node-part'));fireEvent.click(view.getByRole('button',{name:'Заполнить из техпроцесса'}));assert.equal((view.getByLabelText('Диаметр участка 1, мм') as HTMLInputElement).value,'10');
+ fireEvent.click(view.getByTestId('rf__node-process'));fireEvent.change(view.getByLabelText('Операции 1: diameter'),{target:{value:8}});fireEvent.click(view.getByTestId('rf__node-part'));assert.equal((view.getByLabelText('Диаметр участка 1, мм') as HTMLInputElement).value,'10');
+});
+
+test('editor UI: raster upload/replace/delete and decoder failures preserve the image and project',async()=>{
+ const png='data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=';
+ let fail=false;class ImageMock {src='';naturalWidth=1;naturalHeight=1;async decode(){if(fail)throw new Error('corrupt');}}
+ Object.defineProperty(globalThis,'Image',{value:ImageMock,configurable:true});
+ const file=new File([Uint8Array.from(atob(png.split(',')[1]),x=>x.charCodeAt(0))],'intro.png',{type:'image/png'});
+ let view=render(createElement(App));await settle();fireEvent.click(view.getByRole('button',{name:'Приветствие'}));await settle();fireEvent.click(view.getByTestId('rf__node-intro'));
+ fireEvent.change(view.getByLabelText('Изображение (PNG, JPEG, WebP)'),{target:{files:[file]}});await settle();assert.equal(view.container.querySelector('img')!.getAttribute('src'),png);
+ fail=true;fireEvent.change(view.getByLabelText('Изображение (PNG, JPEG, WebP)'),{target:{files:[file]}});await settle();assert.equal(view.container.querySelector('img')!.getAttribute('src'),png);assert.ok(view.container.textContent?.includes('Изображение не изменено'));
+ fail=false;fireEvent.click(view.getByRole('button',{name:'Сохранить'}));const raw=localStorage.getItem('factory-level-v2')!;assert.equal(JSON.parse(raw).nodes.find((n:{type:string})=>n.type==='intro').params.image,png);
+ cleanup();view=render(createElement(App));await settle();fireEvent.click(view.getByTestId('rf__node-intro'));assert.equal(view.container.querySelector('img')!.getAttribute('src'),png);
+ fireEvent.click(view.getByRole('button',{name:'▶ Протестировать'}));await settle();assert.equal(view.container.querySelector('img')!.getAttribute('src'),png);fireEvent.click(view.getByRole('button',{name:'Продолжить →'}));assert.ok(view.container.textContent?.includes('Знакомство завершено.'));
+ fireEvent.click(view.getByRole('button',{name:'← Вернуться в редактор'}));await settle();fireEvent.click(view.getByTestId('rf__node-intro'));fireEvent.click(view.getByRole('button',{name:'Удалить изображение'}));assert.equal(view.container.querySelector('img'),null);
 });

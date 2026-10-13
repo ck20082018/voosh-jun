@@ -23,8 +23,9 @@ export function Workshop({level,core,selected,onCell,onUpdate}:WorkshopProps){
         }else{
           for(const p of level.placements){
             const c=this.center(p.x,p.y),n=level.nodes.find(n=>n.id===p.nodeId)!;
-            this.add.zone(c.x,c.y-38,110,105).setDepth(p.x+p.y).setInteractive({useHandCursor:true}).on('pointerdown',()=>{core.click(n.id);callbacks.current.onUpdate?.();});
-            if(n.type==='lathe')this.add.zone(c.x+2,c.y-64,85,30).setDepth(p.x+p.y+.1).setInteractive({useHandCursor:true}).on('pointerdown',()=>{
+            const mill=n.type==='lathe'&&n.params.kind==='mill';
+            this.add.zone(c.x+(mill?8:0),c.y-(mill?30:38),mill?120:110,mill?170:105).setDepth(p.x+p.y).setInteractive({useHandCursor:true}).on('pointerdown',()=>{core.click(n.id);callbacks.current.onUpdate?.();});
+            if(n.type==='lathe')this.add.zone(c.x+(mill?3:2),c.y-(mill?54:64),mill?70:85,mill?50:30).setDepth(p.x+p.y+.1).setInteractive({useHandCursor:true}).on('pointerdown',()=>{
               core.click(core.state.stage==='finished'?core.resources.blank.id:n.id);callbacks.current.onUpdate?.();
             });
           }
@@ -42,7 +43,7 @@ export function Workshop({level,core,selected,onCell,onUpdate}:WorkshopProps){
       private draw(){
         const state=core?.state;
         this.drawing.render({
-          grid:level.grid,placements:level.placements,nodes:level.nodes,selected:selected??null,
+          grid:level.grid,placements:level.placements,nodes:level.nodes.map(n=>({id:n.id,type:n.type,shape:String(n.params.shape??''),length:Number(n.params.length),diameter:Number(n.params.diameter),width:Number(n.params.width),height:Number(n.params.height),machineKind:String(n.params.kind??'')})),selected:selected??null,
           production:core&&state?{stage:state.stage,selected:state.selected,target:state.target,
             blank:core.resources.blank,part:state.part}:undefined,
         },this.phase);

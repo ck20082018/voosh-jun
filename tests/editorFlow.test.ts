@@ -57,8 +57,8 @@ test('selected edges retain selection when nodes move or parameters change',()=>
 });
 test('a custom level can be created node by node, connected by its own IDs, placed and played',()=>{
   let level=emptyLevel();const original=serializeLevel(level);
-  for(const type of NODE_TYPES)level=addEditorNode(level,type,`custom-${type}`,{x:0,y:0});
-  assert.equal(level.nodes.length,10);assert.equal(new Set(level.nodes.map(n=>`${n.position.x},${n.position.y}`)).size,10);assert.notEqual(serializeLevel(level),original);
+  for(const type of exampleLevel().nodes.map(n=>n.type))level=addEditorNode(level,type,`custom-${type}`,{x:0,y:0});
+  assert.equal(level.nodes.length,11);assert.equal(new Set(level.nodes.map(n=>`${n.position.x},${n.position.y}`)).size,11);assert.notEqual(serializeLevel(level),original);
   const sample=exampleLevel();level.edges=sample.edges.map(e=>({...e,id:`custom-${e.id}`,source:`custom-${e.source}`,target:`custom-${e.target}`}));
   for(const p of sample.placements)level=placeObject(level,`custom-${p.nodeId}`,p.x,p.y)!;
   assert.deepEqual(validateLevel(level),[]);
