@@ -63,3 +63,20 @@ test('multiple finished machines and two stores draw one physical part at its ac
  const {graphics,calls}=recordingGraphics();const view:WorkshopDrawingData={grid:{width:5,height:1},selected:null,nodes:[{id:'blank',type:'blank'},{id:'one',type:'lathe'},{id:'two',type:'lathe'},{id:'mid',type:'warehouse'},{id:'final',type:'warehouse'}],placements:[{nodeId:'blank',x:0,y:0},{nodeId:'one',x:1,y:0},{nodeId:'two',x:2,y:0},{nodeId:'mid',x:3,y:0},{nodeId:'final',x:4,y:0}],production:{stage:'stored',selected:null,target:null,blank:{id:'blank',shape:'cylinder',diameter:20,length:60},part:{sections:[{diameter:12,length:30}]},location:{kind:'warehouse',id:'mid'},machines:{one:{stage:'finished',itemId:null},two:{stage:'empty',itemId:null}},warehouses:{mid:{itemId:'blank'},final:{itemId:null}}}};
  new WorkshopDrawing(graphics).render(freeze(view),0);assert.equal(calls.filter(c=>c.name==='fillStyle'&&c.args[0]===0x9db0b9).length,2);const metal=calls[calls.findIndex(c=>c.name==='fillStyle'&&c.args[0]===0x9db0b9)+1];assert.equal(metal.args[0][0].x,projectCell(3,0).x-17);
 });
+
+test('a drag preview renders one actual part at the pointer and never a duplicate at its source',()=>{
+ const {graphics,calls}=recordingGraphics();
+ const view=freeze<WorkshopDrawingData>({grid:{width:3,height:1},selected:null,
+  nodes:[{id:'blank',type:'blank'},{id:'machine',type:'lathe'},{id:'store',type:'warehouse'}],
+  placements:[{nodeId:'blank',x:0,y:0},{nodeId:'machine',x:1,y:0},{nodeId:'store',x:2,y:0}],
+  draggedPart:{x:700,y:200,length:45,radius:9},
+  production:{stage:'finished',selected:'blank',target:'warehouse',location:{kind:'machine',id:'machine'},
+   machines:{machine:{stage:'finished',itemId:'blank'}},blank:{id:'blank',diameter:20,length:60},part:{sections:[{diameter:12,length:30}]}}});
+ const before=JSON.stringify(view);
+ new WorkshopDrawing(graphics).render(view,0);
+ const surfaces=calls.filter(c=>c.name==='fillStyle'&&c.args[0]===0x9db0b9);
+ assert.equal(surfaces.length,2);
+ const first=calls[calls.indexOf(surfaces[0])+1];
+ assert.equal(first.args[0][0].x,700);
+ assert.equal(JSON.stringify(view),before);
+});

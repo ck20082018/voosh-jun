@@ -1,5 +1,7 @@
 import type Phaser from 'phaser';
 import {shaftSegments} from './partGeometry';
+import {partPose,projectCell,type PartPose} from './workshopGeometry';
+export {projectCell} from './workshopGeometry';
 
 export interface DrawingPlacement {readonly nodeId:string;readonly x:number;readonly y:number}
 export interface WorkshopDrawingData {
@@ -7,6 +9,7 @@ export interface WorkshopDrawingData {
   readonly placements:readonly DrawingPlacement[];
   readonly nodes:readonly {readonly id:string;readonly type:string;readonly shape?:string;readonly diameter?:number;readonly length?:number;readonly width?:number;readonly height?:number;readonly machineKind?:string}[];
   readonly selected:string|null;
+  readonly draggedPart?:PartPose|null;
   readonly production?:{
     readonly targetIds?:readonly string[];
     readonly location?:{readonly kind:string;readonly id:string}|null;
@@ -17,9 +20,6 @@ export interface WorkshopDrawingData {
     readonly part:null|{readonly shape?:string;readonly length?:number;readonly width?:number;readonly height?:number;readonly sections:readonly {readonly diameter:number;readonly length:number}[]};
   };
 }
-
-// Shared by the rendering and input adapter; coordinates stay aligned.
-export function projectCell(x:number,y:number){return {x:510+(x-y)*58,y:155+(x+y)*30};}
 
 export class WorkshopDrawing {
   private view!:WorkshopDrawingData;
@@ -75,12 +75,15 @@ export class WorkshopDrawing {
     }
     const placements=[...level.placements].sort((a,b)=>(a.x+a.y)-(b.x+b.y));
     for(const p of placements)this.object(p,s?.selected??selected??null);
+    if(this.view.draggedPart){const p=this.view.draggedPart;this.cylinder(p.x,p.y,p.length,p.radius,!!production?.part);}
     if(!production)for(const point of this.view.grid.points??[]){const c=this.center(point.x,point.y);const occupied=placements.some(p=>p.x===point.x&&p.y===point.y);g.fillStyle(occupied?0x638e73:0x72aeb1).fillCircle(c.x+38,c.y+4,5);g.lineStyle(1,0xedf4ef).strokeCircle(c.x+38,c.y+4,5);}
   }
   private object(p:DrawingPlacement,selection:string|null){
     const level=this.view;const production=this.view.production;
     const n=level.nodes.find(n=>n.id===p.nodeId);if(!n)return;
     const c=this.center(p.x,p.y),x=c.x,y=c.y;
+    const pose=partPose(p,n.type,n.machineKind==='mill');
+    const drawPart=()=>{if(!this.view.draggedPart)this.cylinder(pose.x,pose.y,pose.length,pose.radius,!!production?.part);};
     const data=this.view.production;
     const localStage=!data?.location?data?.stage:data.location.id===n.id?(data.location.kind==='table'?'table':data.location.kind==='warehouse'?'stored':data.machines?.[n.id]?.stage):'empty';
     const s=data?{...data,stage:localStage}:undefined;
@@ -91,7 +94,7 @@ export class WorkshopDrawing {
     if(n.type==='blank'||n.type==='table'){
       this.box(x-32,y+8,9,5,47,0xae9870,0x8e7d59,0x73694d);this.box(x+25,y+24,9,5,47,0xae9870,0x8e7d59,0x73694d);
       this.box(x-27,y-8,75,22,10,0xd0b98e,0xb49b75,0x938263);
-      if(n.type==='blank'&&(!production||s?.stage==='table'))this.cylinder(x-18,y-34,46,9,false);
+      if(n.type==='blank'&&(!production||s?.stage==='table'))drawPart();
     }else if(n.type==='lathe'&&n.machineKind==='mill'){
       this.box(x-28,y+5,78,24,42,0x83a493,0x618473,0x486b60);
       this.box(x-32,y-32,88,25,12,0xb0c5b5,0x7a9b87,0x678877);
@@ -99,7 +102,7 @@ export class WorkshopDrawing {
       this.box(x-5,y-99,58,16,14,0xb0c5b5,0x7a9b87,0x678877);
       this.g.lineStyle(7,0x405b52).lineBetween(x+9,y-99,x+9,y-72);
       this.g.fillStyle(0x6e8794).fillEllipse(x+9,y-72,18,8);
-      if(s?.stage==='loaded'||s?.stage==='processing'||s?.stage==='finished')this.cylinder(x-19,y-55,45,9,!!s.part);
+      if(s?.stage==='loaded'||s?.stage==='processing'||s?.stage==='finished')drawPart();
       if(s?.stage==='processing')this.g.lineStyle(2,0xd9bd61).strokeEllipse(x+9,y-72,22+Math.sin(this.phase)*3,10);
     }else if(n.type==='lathe'){
       this.box(x-28,y+5,78,24,42,0x83a493,0x618473,0x486b60);
@@ -109,7 +112,7 @@ export class WorkshopDrawing {
       this.box(x+42,y-19,17,12,29,0x9ab7a9,0x799789,0x5f7e70);
       this.g.lineStyle(4,0x526f60).lineBetween(x-3,y-41,x+41,y-30);
       this.g.fillStyle(0xd4dfce).fillCircle(x-24,y-27,6);
-      if(s?.stage==='loaded'||s?.stage==='processing'||s?.stage==='finished')this.cylinder(x-1,y-69,45,9,!!s?.part);
+      if(s?.stage==='loaded'||s?.stage==='processing'||s?.stage==='finished')drawPart();
       if(s?.stage==='processing'){
         this.g.fillStyle(0xe7be61).fillCircle(x-26,y-13,3);
         this.g.lineStyle(2,0xd9bd61).strokeCircle(x+23,y-52,13+Math.sin(this.phase)*2);
@@ -119,7 +122,7 @@ export class WorkshopDrawing {
       this.box(x-31,y-13,6,5,63,0x99ad9a,0x758e78,0x5c7361);
       this.box(x+39,y+5,6,5,63,0x99ad9a,0x758e78,0x5c7361);
       this.box(x-32,y-77,80,23,8,0xc2d2bd,0x9eb294,0x829c7a);
-      if(s?.stage==='stored')this.cylinder(x-17,y-31,42,8,true);
+      if(s?.stage==='stored')drawPart();
     }
   }
 }

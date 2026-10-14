@@ -1,12 +1,17 @@
-import {useEffect,useRef} from 'react';
+import {useCallback,useEffect,useRef} from 'react';
 import Phaser from 'phaser';
 import {locatedPlacements,type Level} from './level';
 import type {FactoryCore} from './core';
 import {WorkshopDrawing,projectCell} from './presentation/workshopDrawing';
+import {WorkshopInteractions} from './WorkshopInteractions';
+import {WORKSHOP_WIDTH,WORKSHOP_HEIGHT,type PartPose} from './presentation/workshopGeometry';
 interface WorkshopProps {level:Level;core?:FactoryCore;selected?:string|null;onCell?:(x:number,y:number)=>void;onUpdate?:()=>void}
 export function Workshop({level,core,selected,onCell,onUpdate}:WorkshopProps){
   const host=useRef<HTMLDivElement>(null);
+  const draggedPart=useRef<PartPose|null>(null);
   const callbacks=useRef({onCell,onUpdate});callbacks.current={onCell,onUpdate};
+  const notify=useCallback(()=>callbacks.current.onUpdate?.(),[]);
+  const dragChanged=useCallback((pose:PartPose|null)=>{draggedPart.current=pose;},[]);
   useEffect(()=>{
     if(!host.current)return;
     class WorkshopScene extends Phaser.Scene {
@@ -19,15 +24,6 @@ export function Workshop({level,core,selected,onCell,onUpdate}:WorkshopProps){
           for(let y=0;y<level.grid.height;y++)for(let x=0;x<level.grid.width;x++){
             const c=this.center(x,y);
             this.add.zone(c.x,c.y,116,60).setInteractive(new Phaser.Geom.Polygon([58,0,116,30,58,60,0,30]),Phaser.Geom.Polygon.Contains).on('pointerdown',()=>callbacks.current.onCell?.(x,y));
-          }
-        }else{
-          for(const p of locatedPlacements(level)){
-            const c=this.center(p.x,p.y),n=level.nodes.find(n=>n.id===p.nodeId)!;
-            const mill=n.type==='lathe'&&n.params.kind==='mill';
-            this.add.zone(c.x+(mill?8:0),c.y-(mill?30:38),mill?120:110,mill?170:105).setDepth(p.x+p.y).setInteractive({useHandCursor:true}).on('pointerdown',()=>{core.click(n.id);callbacks.current.onUpdate?.();});
-            if(n.type==='lathe')this.add.zone(c.x+(mill?3:2),c.y-(mill?54:64),mill?70:85,mill?50:30).setDepth(p.x+p.y+.1).setInteractive({useHandCursor:true}).on('pointerdown',()=>{
-              core.click(core.state.location?.kind==='machine'&&core.state.location.id===n.id&&core.state.machines[n.id].stage==='finished'?core.resources.blank.id:n.id);callbacks.current.onUpdate?.();
-            });
           }
         }
         for(const p of locatedPlacements(level)){
@@ -43,14 +39,14 @@ export function Workshop({level,core,selected,onCell,onUpdate}:WorkshopProps){
       private draw(){
         const state=core?.state;
         this.drawing.render({
-          grid:level.grid,placements:locatedPlacements(level),nodes:level.nodes.map(n=>({id:n.id,type:n.type,shape:String(n.params.shape??''),length:Number(n.params.length),diameter:Number(n.params.diameter),width:Number(n.params.width),height:Number(n.params.height),machineKind:String(n.params.kind??'')})),selected:selected??null,
+          grid:level.grid,placements:locatedPlacements(level),nodes:level.nodes.map(n=>({id:n.id,type:n.type,shape:String(n.params.shape??''),length:Number(n.params.length),diameter:Number(n.params.diameter),width:Number(n.params.width),height:Number(n.params.height),machineKind:String(n.params.kind??'')})),selected:selected??null,draggedPart:draggedPart.current,
           production:core&&state?{stage:state.stage,selected:state.selected,target:state.target,
             blank:core.resources.blank,part:state.part,location:state.location,targetIds:core.targetIds,machines:state.machines,warehouses:state.warehouses}:undefined,
         },this.phase);
       }
     }
-    const game=new Phaser.Game({type:Phaser.AUTO,parent:host.current,width:1020,height:660,backgroundColor:'#f1f5eb',scene:WorkshopScene,scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},audio:{noAudio:true}});
-    return()=>game.destroy(true);
+    const game=new Phaser.Game({type:Phaser.AUTO,parent:host.current,width:WORKSHOP_WIDTH,height:WORKSHOP_HEIGHT,backgroundColor:'#f1f5eb',scene:WorkshopScene,scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},audio:{noAudio:true}});
+    return()=>{draggedPart.current=null;game.destroy(true);};
   },[level,core,selected]);
-  return <div className="workshop-canvas" ref={host} aria-label={core?'Изометрический цех':'Карта размещения объектов'} />;
+  return <div className="workshop-stage"><div className="workshop-canvas" ref={host} aria-label={core?'Изометрический цех':'Карта размещения объектов'} />{core&&<WorkshopInteractions level={level} core={core} onUpdate={notify} onDragChange={dragChanged}/>}</div>;
 }

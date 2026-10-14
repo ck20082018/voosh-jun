@@ -14,3 +14,16 @@
 .object-actions{display:flex;gap:5px;flex-wrap:wrap}.result-comparison{padding:12px;background:#f2eedb;border-radius:8px;margin-top:12px}.result-comparison .part-preview svg{max-height:120px}
 @media(max-width:800px){.planning-layout{grid-template-columns:1fr;padding:12px}}
 .properties input[type=checkbox]{width:auto;margin-right:8px}.tool-card{flex:1;min-width:160px;padding:10px;background:#edf2e8;border-radius:6px}
+
+/* Actions and pointer hit areas stay aligned with the scaled workshop canvas. */
+.workshop-stage{position:relative;width:100%;aspect-ratio:1020/660}
+.workshop-interactions{position:absolute;inset:0;pointer-events:none}
+.workshop-object-hit,.workshop-part-hit{position:absolute;transform:translate(-50%,-50%);pointer-events:auto;background:transparent;border:0;padding:0;box-shadow:none;border-radius:8px;cursor:pointer;touch-action:none}
+.workshop-object-hit:hover,.workshop-part-hit:hover{background:#caa04b15}
+.workshop-object-hit:focus-visible,.workshop-part-hit:focus-visible{outline:3px solid #b58d37;outline-offset:2px;background:#caa04b22}
+.workshop-part-hit{cursor:grab}.workshop-part-hit.dragging{cursor:grabbing}
+.workshop-action-menu{position:absolute;z-index:30;transform:translateX(-50%);width:min(240px,calc(100% - 16px));pointer-events:auto;background:#f8faf1;border:1px solid #bdcca9;border-radius:12px;padding:12px;box-shadow:0 8px 24px #20382b33;font-size:12px}
+.workshop-action-heading{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:8px}.workshop-action-heading strong{overflow-wrap:anywhere}.workshop-action-heading button{padding:2px 8px;font-size:18px}
+.workshop-action-menu>button{width:100%;margin-top:6px}.workshop-action-menu p{font-size:11px;line-height:1.5;margin:6px 0;color:#6f8261}
+.workshop-transfer-notice{position:absolute;z-index:31;bottom:8px;left:8px;right:8px;background:#f8faf1ed;border:1px solid #bdcca9;border-radius:8px;padding:8px 12px;font-size:12px;margin:0;color:#365540}
+.workshop-action-menu.choosing-target{transform:none}
