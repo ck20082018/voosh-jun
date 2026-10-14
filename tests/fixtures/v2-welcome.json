@@ -1,0 +1,61 @@
+{
+  "version": 2,
+  "id": "e1d4d084-2ef0-40e7-b56f-b7b88a866db4",
+  "name": "Приветствие",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "start",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "params": {}
+    },
+    {
+      "id": "intro",
+      "type": "intro",
+      "position": {
+        "x": 280,
+        "y": 0
+      },
+      "params": {
+        "title": "Добро пожаловать!",
+        "text": "Познакомьтесь с учебной мастерской. Оборудование не требуется.",
+        "image": ""
+      }
+    },
+    {
+      "id": "finish",
+      "type": "finish",
+      "position": {
+        "x": 560,
+        "y": 0
+      },
+      "params": {
+        "text": "Знакомство завершено."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "start-out-intro-in",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "intro",
+      "targetHandle": "in"
+    },
+    {
+      "id": "intro-out-finish-in",
+      "source": "intro",
+      "sourceHandle": "out",
+      "target": "finish",
+      "targetHandle": "in"
+    }
+  ],
+  "grid": {
+    "width": 5,
+    "height": 5
+  },
+  "placements": []
+}

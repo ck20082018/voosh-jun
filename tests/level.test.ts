@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {exampleLevel,compatible,deleteNodes,placeObject} from '../src/level';
+import {exampleLevel,operations,compatible,deleteNodes,placeObject} from '../src/level';
 import {validateLevel} from '../src/validation';
 import {compileLevel} from '../src/compiler';
 import {FactoryCore,suitable} from '../src/core';
@@ -9,13 +9,13 @@ function engine(){return new FactoryCore(compileLevel(exampleLevel()));}
 function manufacture(core:FactoryCore){
   assert.equal(core.click('blank'),true);assert.equal(core.command('install'),true);
   assert.equal(core.click('lathe'),true);assert.equal(core.command('process'),true);
-  core.tick(core.resources.operation.seconds*1000);
+  core.tick(core.currentOperation.seconds*1000);
   assert.equal(core.click('blank'),true);assert.equal(core.command('store'),true);assert.equal(core.click('warehouse'),true);
 }
 test('fully connected and placed example validates and compiles',()=>{
   assert.deepEqual(validateLevel(exampleLevel()),[]);
   const compiled=compileLevel(exampleLevel());if(compiled.mode!=='production')throw new Error('Expected production');
-  assert.equal(compiled.operation.seconds,3);assert.equal(compiled.blank.diameter,20);assert.equal(compiled.expected.diameter,12);
+  assert.equal(compiled.operations[0].seconds,3);assert.equal((compiled.blank.shape==='cylinder'?compiled.blank.diameter:0),20);assert.equal(compiled.waits.wait.requirements.sections[0].diameter,12);
   assert.deepEqual(compiled.scenario.map(n=>n.type),['start','intro','task','wait','finish']);
 });
 test('complete cycle explicitly starts and completes nodes, and finishes once',()=>{
@@ -45,11 +45,11 @@ test('direct forbidden commands, invalid targets and duplicate processing do not
   assert.equal(core.log.filter(e=>e.type==='processing-started').length,1);
 });
 test('completion requires expected dimensions and expected warehouse',()=>{
-  const level=compileLevel(exampleLevel());if(level.mode!=='production')throw new Error('Expected production');level.expected.diameter=11;
+  const level=compileLevel(exampleLevel());if(level.mode!=='production')throw new Error('Expected production');level.waits.wait.requirements.sections[0].diameter=11;
   const core=new FactoryCore(level);core.command('start');manufacture(core);
   assert.equal(core.state.count,1);assert.equal(core.state.completed,false);assert.equal(core.state.activeNodeId,'wait');
-  assert.equal(suitable(core.state.part,core.resources.operation,'other','warehouse'),false);
-  assert.equal(suitable(null,core.resources.operation,'warehouse','warehouse'),false);core.dispose();
+  assert.equal(suitable(core.state.part,core.resources.waits.wait.requirements,'other','warehouse'),false);
+  assert.equal(suitable(null,core.resources.waits.wait.requirements,'warehouse','warehouse'),false);core.dispose();
 });
 test('wait checks already stored state when activated, not only future events',()=>{
   const core=engine();core.subscribe(event=>{if(event.type==='node-completed'&&event.nodeId==='task')manufacture(core);});
@@ -68,32 +68,33 @@ test('leaving test disposes timers and subscriptions and cannot affect next run'
 });
 test('node parameters control intro, duration, output and success without source changes',()=>{
   const level=exampleLevel();level.nodes.find(n=>n.type==='intro')!.params.text='Изменённое вступление';
-  Object.assign(level.nodes.find(n=>n.type==='turning')!.params,{diameter:8,length:45,seconds:1.25});
+  Object.assign(operations(level.nodes.find(n=>n.type==='process')!)[0],{diameter:8,length:45,seconds:1.25});
+  level.nodes.find(n=>n.type==='part')!.params.sections=[{diameter:8,length:45}];
   level.nodes.find(n=>n.type==='finish')!.params.text='Новый итог';const json=serializeLevel(level);
   const compiled=compileLevel(level);if(compiled.mode!=='production')throw new Error('Expected production');const core=new FactoryCore(compiled);
   assert.equal(core.level.scenario.find(n=>n.type==='intro')!.params.text,'Изменённое вступление');
   core.command('start');core.click('blank');core.command('install');core.click('lathe');core.command('process');core.tick(1249);assert.equal(core.state.stage,'processing');core.tick(1);
-  assert.equal(core.state.part?.sectionDiameter,8);assert.equal(core.state.part?.sectionLength,45);
+  assert.equal(core.state.part?.sections[0].diameter,8);assert.equal(core.state.part?.sections[0].length,45);
   core.click('blank');core.command('store');core.click('warehouse');assert.equal(core.state.success,'Новый итог');assert.equal(serializeLevel(level),json);
-  compiled.operation.seconds=99;assert.equal(core.resources.operation.seconds,1.25);
+  compiled.operations[0].seconds=99;assert.equal(core.currentOperation.seconds,1.25);
 });
 test('validation rejects incompatible links, missing references and cycles',()=>{
   const level=exampleLevel();
-  assert.equal(compatible(level,{source:'tool',sourceHandle:'tool',target:'turning',targetHandle:'blank'}),false);
-  level.edges.find(e=>e.target==='turning')!.source='tool';level.edges.find(e=>e.target==='turning')!.sourceHandle='tool';
+  assert.equal(compatible(level,{source:'tool',sourceHandle:'tool',target:'lathe',targetHandle:'blank'}),false);
+  level.edges.find(e=>e.target==='lathe'&&e.targetHandle==='blank')!.source='tool';level.edges.find(e=>e.target==='lathe'&&e.targetHandle==='blank')!.sourceHandle='tool';
   assert.ok(validateLevel(level).some(e=>e.message.includes('Несовместимые')));
   level.edges[0].source='missing';assert.ok(validateLevel(level).some(e=>e.message.includes('отсутствующую')));
   const cyclic=exampleLevel();cyclic.edges.push({id:'cycle',source:'wait',sourceHandle:'out',target:'intro',targetHandle:'in'});
-  assert.ok(validateLevel(cyclic).some(e=>e.message.includes('Циклы')));assert.ok(validateLevel(cyclic).some(e=>e.message.includes('Параллельные')));
+  assert.ok(validateLevel(cyclic).some(e=>e.message.includes('Циклы')));
   assert.throws(()=>compileLevel(cyclic));
 });
 test('validation rejects missing required ports, invalid sizes and unsupported scenario order',()=>{
   const level=exampleLevel();level.edges=level.edges.filter(e=>e.targetHandle!=='tool');
   assert.ok(validateLevel(level).some(e=>e.message.includes('Не подключён вход')));
-  const op=level.nodes.find(n=>n.type==='turning')!;op.params.diameter=25;op.params.length=80;op.params.seconds=-1;
-  assert.ok(validateLevel(level).some(e=>e.nodeId===op.id&&e.message.includes('меньше')));
-  assert.ok(validateLevel(level).some(e=>e.message.includes('длиннее')));assert.ok(validateLevel(level).some(e=>e.message.includes('положительное')));
-  const wrong=exampleLevel();wrong.edges.find(e=>e.source==='start')!.target='wait';assert.ok(validateLevel(wrong).some(e=>e.message.includes('цепочка')));
+  const process=level.nodes.find(n=>n.type==='process')!;const op=operations(process)[0];Object.assign(op,{diameter:25,length:80,seconds:-1});
+  assert.ok(validateLevel(level).some(e=>e.nodeId==='lathe'&&e.message.includes('меньше')));
+  assert.ok(validateLevel(level).some(e=>e.message.includes('Суммарная')));assert.ok(validateLevel(level).some(e=>e.message.includes('положительное')));
+  const wrong=exampleLevel();wrong.edges.find(e=>e.source==='start')!.target='wait';assert.ok(validateLevel(wrong).some(e=>e.message.includes('Ожидание')));
 });
 test('placement prevents overlap/out-of-bounds and object removal cleans edges and map',()=>{
   const level=exampleLevel();assert.equal(placeObject(level,'blank',2,2),null);assert.equal(placeObject(level,'blank',-1,0),null);assert.equal(placeObject(level,'blank',5,0),null);
@@ -101,7 +102,7 @@ test('placement prevents overlap/out-of-bounds and object removal cleans edges a
   const moved=placeObject(level,'blank',1,0)!;assert.equal(moved.placements.filter(p=>p.nodeId==='blank').length,1);assert.deepEqual(moved.nodes.find(n=>n.id==='blank')!.position,level.nodes.find(n=>n.id==='blank')!.position);
   const cleaned=deleteNodes(moved,['blank']);assert.ok(!cleaned.placements.some(p=>p.nodeId==='blank'));assert.ok(!cleaned.edges.some(e=>e.source==='blank'||e.target==='blank'));
   assert.ok(validateLevel(cleaned).some(e=>e.message.includes('Не подключён вход')));
-  const overlap=exampleLevel();overlap.placements[0].x=2;assert.ok(validateLevel(overlap).some(e=>e.message.includes('другой объект')));
+  const overlap=exampleLevel();overlap.placements[0].pointId=overlap.placements[1].pointId;assert.ok(validateLevel(overlap).some(e=>e.message.includes('другой объект')));
 });
 test('JSON/local storage round trip restores graph, ports and placements without runtime',()=>{
   const level=exampleLevel();const data=new Map<string,string>();const storage={getItem:(k:string)=>data.get(k)??null,setItem:(k:string,v:string)=>{data.set(k,v);}};
