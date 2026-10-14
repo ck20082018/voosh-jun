@@ -1,10 +1,10 @@
-import {portPair,registry,type Level,type LevelEdge} from './level';
+import {portPair,registry,portsCompatible,type Level,type LevelEdge} from './level';
 export type ConnectionDefinition=Omit<LevelEdge,'id'>;
 export function connectionIssue(level:Level,edge:ConnectionDefinition):string|null{
   const pair=portPair(level,edge);
   if(!pair)return 'Выберите существующие ноды и их порты.';
   if(edge.source===edge.target)return 'Нельзя соединить ноду с самой собой.';
-  if(pair.output.type!==pair.input.type)return `Выход «${pair.output.label}» не подходит для входа «${pair.input.label}»: это разные типы данных.`;
+  if(!portsCompatible(pair.output,pair.input))return `Выход «${pair.output.label}» не подходит для входа «${pair.input.label}»: это разные типы данных.`;
   if(level.edges.some(existing=>existing.source===edge.source&&existing.sourceHandle===edge.sourceHandle&&existing.target===edge.target&&existing.targetHandle===edge.targetHandle))return 'Эта связь уже существует.';
   if(!pair.input.multiple&&level.edges.some(existing=>existing.target===edge.target&&existing.targetHandle===edge.targetHandle))return 'Этот вход уже занят. Выберите его линию и удалите её, прежде чем подключать другой выход.';
   if(pair.output.type==='execution'&&level.edges.some(existing=>existing.source===edge.source&&existing.sourceHandle===edge.sourceHandle))return 'Выход выполнения уже подключён. Удалите прежнюю линию: параллельные ветви не поддерживаются.';

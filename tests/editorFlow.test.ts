@@ -2,7 +2,7 @@ import {test} from 'node:test';
 import assert from 'node:assert/strict';
 import {adoptUserNodes,type NodeLookup,type ParentLookup,type InternalNodeBase,getEdgePosition,ConnectionMode} from '@xyflow/system';
 import {applyNodeChanges,type NodeChange,Position} from '@xyflow/react';
-import {exampleLevel,emptyLevel,NODE_TYPES,placeObject} from '../src/level';
+import {exampleLevel,locatedPlacements,emptyLevel,NODE_TYPES,placeObject} from '../src/level';
 import {reconcileNodes,reconcileEdges,updateLevelFromFlow,addEditorNode,type FlowNode} from '../src/editorFlow';
 import {serializeLevel} from '../src/storage';
 import {validateLevel} from '../src/validation';
@@ -58,9 +58,9 @@ test('selected edges retain selection when nodes move or parameters change',()=>
 test('a custom level can be created node by node, connected by its own IDs, placed and played',()=>{
   let level=emptyLevel();const original=serializeLevel(level);
   for(const type of exampleLevel().nodes.map(n=>n.type))level=addEditorNode(level,type,`custom-${type}`,{x:0,y:0});
-  assert.equal(level.nodes.length,11);assert.equal(new Set(level.nodes.map(n=>`${n.position.x},${n.position.y}`)).size,11);assert.notEqual(serializeLevel(level),original);
-  const sample=exampleLevel();level.edges=sample.edges.map(e=>({...e,id:`custom-${e.id}`,source:`custom-${e.source}`,target:`custom-${e.target}`}));
-  for(const p of sample.placements)level=placeObject(level,`custom-${p.nodeId}`,p.x,p.y)!;
+  assert.equal(level.nodes.length,12);assert.equal(new Set(level.nodes.map(n=>`${n.position.x},${n.position.y}`)).size,12);assert.notEqual(serializeLevel(level),original);
+  const sample=exampleLevel();level.grid=structuredClone(sample.grid);level.edges=sample.edges.map(e=>({...e,id:`custom-${e.id}`,source:`custom-${e.source}`,target:`custom-${e.target}`}));
+  for(const p of locatedPlacements(sample))level=placeObject(level,`custom-${p.nodeId}`,p.x,p.y)!;
   assert.deepEqual(validateLevel(level),[]);
   const core=new FactoryCore(compileLevel(level));core.command('start');core.click('custom-blank');core.command('install');core.click('custom-lathe');core.command('process');core.tick(3000);core.click('custom-blank');core.command('store');core.click('custom-warehouse');assert.equal(core.state.completed,true);
   assert.equal(addEditorNode(level,'start','custom-start',{x:0,y:0}),level);

@@ -92,7 +92,7 @@ test('validation rejects missing required ports, invalid sizes and unsupported s
   const level=exampleLevel();level.edges=level.edges.filter(e=>e.targetHandle!=='tool');
   assert.ok(validateLevel(level).some(e=>e.message.includes('Не подключён вход')));
   const process=level.nodes.find(n=>n.type==='process')!;const op=operations(process)[0];Object.assign(op,{diameter:25,length:80,seconds:-1});
-  assert.ok(validateLevel(level).some(e=>e.nodeId===process.id&&e.message.includes('меньше')));
+  assert.ok(validateLevel(level).some(e=>e.nodeId==='lathe'&&e.message.includes('меньше')));
   assert.ok(validateLevel(level).some(e=>e.message.includes('Суммарная')));assert.ok(validateLevel(level).some(e=>e.message.includes('положительное')));
   const wrong=exampleLevel();wrong.edges.find(e=>e.source==='start')!.target='wait';assert.ok(validateLevel(wrong).some(e=>e.message.includes('Ожидание')));
 });
@@ -102,7 +102,7 @@ test('placement prevents overlap/out-of-bounds and object removal cleans edges a
   const moved=placeObject(level,'blank',1,0)!;assert.equal(moved.placements.filter(p=>p.nodeId==='blank').length,1);assert.deepEqual(moved.nodes.find(n=>n.id==='blank')!.position,level.nodes.find(n=>n.id==='blank')!.position);
   const cleaned=deleteNodes(moved,['blank']);assert.ok(!cleaned.placements.some(p=>p.nodeId==='blank'));assert.ok(!cleaned.edges.some(e=>e.source==='blank'||e.target==='blank'));
   assert.ok(validateLevel(cleaned).some(e=>e.message.includes('Не подключён вход')));
-  const overlap=exampleLevel();overlap.placements[0].x=2;assert.ok(validateLevel(overlap).some(e=>e.message.includes('другой объект')));
+  const overlap=exampleLevel();overlap.placements[0].pointId=overlap.placements[1].pointId;assert.ok(validateLevel(overlap).some(e=>e.message.includes('другой объект')));
 });
 test('JSON/local storage round trip restores graph, ports and placements without runtime',()=>{
   const level=exampleLevel();const data=new Map<string,string>();const storage={getItem:(k:string)=>data.get(k)??null,setItem:(k:string,v:string)=>{data.set(k,v);}};

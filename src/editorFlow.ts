@@ -1,3 +1,4 @@
+import {addMap} from './map';
 import type {Node,NodeChange,Edge} from '@xyflow/react';
 import {MarkerType} from '@xyflow/react';
 import {deleteNodes,makeNode,portPair,type Level,type LevelNode,type NodeKind} from './level';
@@ -48,6 +49,7 @@ export function findFreeNodePosition(nodes:LevelNode[],desired:{x:number;y:numbe
 }
 export function addEditorNode(level:Level,type:NodeKind,id:string,desired:{x:number;y:number}):Level{
   if(level.nodes.some(node=>node.id===id))return level;
+  if(type==='map'){const next=addMap(level,id);return {...next,nodes:next.nodes.map(n=>n.id===id?{...n,position:findFreeNodePosition(level.nodes,desired)}:n)};}
   const node=makeNode(type,id,findFreeNodePosition(level.nodes,desired));
   return {...level,nodes:[...level.nodes,node]};
 }

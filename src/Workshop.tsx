@@ -1,6 +1,6 @@
 import {useEffect,useRef} from 'react';
 import Phaser from 'phaser';
-import type {Level} from './level';
+import {locatedPlacements,type Level} from './level';
 import type {FactoryCore} from './core';
 import {WorkshopDrawing,projectCell} from './presentation/workshopDrawing';
 interface WorkshopProps {level:Level;core?:FactoryCore;selected?:string|null;onCell?:(x:number,y:number)=>void;onUpdate?:()=>void}
@@ -21,16 +21,16 @@ export function Workshop({level,core,selected,onCell,onUpdate}:WorkshopProps){
             this.add.zone(c.x,c.y,116,60).setInteractive(new Phaser.Geom.Polygon([58,0,116,30,58,60,0,30]),Phaser.Geom.Polygon.Contains).on('pointerdown',()=>callbacks.current.onCell?.(x,y));
           }
         }else{
-          for(const p of level.placements){
+          for(const p of locatedPlacements(level)){
             const c=this.center(p.x,p.y),n=level.nodes.find(n=>n.id===p.nodeId)!;
             const mill=n.type==='lathe'&&n.params.kind==='mill';
             this.add.zone(c.x+(mill?8:0),c.y-(mill?30:38),mill?120:110,mill?170:105).setDepth(p.x+p.y).setInteractive({useHandCursor:true}).on('pointerdown',()=>{core.click(n.id);callbacks.current.onUpdate?.();});
             if(n.type==='lathe')this.add.zone(c.x+(mill?3:2),c.y-(mill?54:64),mill?70:85,mill?50:30).setDepth(p.x+p.y+.1).setInteractive({useHandCursor:true}).on('pointerdown',()=>{
-              core.click(core.state.stage==='finished'?core.resources.blank.id:n.id);callbacks.current.onUpdate?.();
+              core.click(core.state.location?.kind==='machine'&&core.state.location.id===n.id&&core.state.machines[n.id].stage==='finished'?core.resources.blank.id:n.id);callbacks.current.onUpdate?.();
             });
           }
         }
-        for(const p of level.placements){
+        for(const p of locatedPlacements(level)){
           const n=level.nodes.find(n=>n.id===p.nodeId);if(!n)continue;
           const c=this.center(p.x,p.y);
           this.add.text(c.x,c.y+42,String(n.params.name),{fontFamily:'Arial',fontSize:'14px',color:'#36554a',backgroundColor:'#edf2e8',padding:{x:5,y:3}}).setOrigin(.5).setDepth(10);
@@ -43,9 +43,9 @@ export function Workshop({level,core,selected,onCell,onUpdate}:WorkshopProps){
       private draw(){
         const state=core?.state;
         this.drawing.render({
-          grid:level.grid,placements:level.placements,nodes:level.nodes.map(n=>({id:n.id,type:n.type,shape:String(n.params.shape??''),length:Number(n.params.length),diameter:Number(n.params.diameter),width:Number(n.params.width),height:Number(n.params.height),machineKind:String(n.params.kind??'')})),selected:selected??null,
+          grid:level.grid,placements:locatedPlacements(level),nodes:level.nodes.map(n=>({id:n.id,type:n.type,shape:String(n.params.shape??''),length:Number(n.params.length),diameter:Number(n.params.diameter),width:Number(n.params.width),height:Number(n.params.height),machineKind:String(n.params.kind??'')})),selected:selected??null,
           production:core&&state?{stage:state.stage,selected:state.selected,target:state.target,
-            blank:core.resources.blank,part:state.part}:undefined,
+            blank:core.resources.blank,part:state.part,location:state.location,targetIds:core.targetIds,machines:state.machines,warehouses:state.warehouses}:undefined,
         },this.phase);
       }
     }

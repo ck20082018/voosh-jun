@@ -1,5 +1,17 @@
 import { near } from './manufacturing';
 import { makeNode, type Level, type LevelNode, type LevelEdge, type OperationSpec } from './level';
+export interface LegacyV2Level extends Omit<Level, 'version' | 'grid' | 'placements'> {
+    version: 2;
+    grid: {
+        width: number;
+        height: number;
+    };
+    placements: {
+        nodeId: string;
+        x: number;
+        y: number;
+    }[];
+}
 export interface LegacyLevel {
     version: 1;
     id: string;
@@ -18,15 +30,19 @@ export interface LegacyLevel {
         };
     }[];
     edges: LevelEdge[];
-    grid: Level['grid'];
-    placements: Level['placements'];
+    grid: LegacyV2Level['grid'];
+    placements: LegacyV2Level['placements'];
 }
-export function migrateV1(old: LegacyLevel): Level {
+export function migrateV1(old: LegacyLevel): LegacyV2Level {
     const fail = (why: string): never => { throw new Error(`Миграция v1 невозможна: ${why}. Старое сохранение не изменено.`); };
     const find = (id: string) => old.nodes.find(n => n.id === id);
-    const source = (target: string, port: string) => { const links = old.edges.filter(e => e.target === target && e.targetHandle === port); if (links.length !== 1)
-        return fail(`для ${target}/${port} требуется одна связь`); return find(links[0].source) ?? fail('отсутствует нода по ссылке'); };
-    const l: Level = { version: 2, id: old.id, name: old.name, nodes: [], edges: structuredClone(old.edges), grid: { ...old.grid }, placements: structuredClone(old.placements) };
+    const source = (target: string, port: string) => {
+        const links = old.edges.filter(e => e.target === target && e.targetHandle === port);
+        if (links.length !== 1)
+            return fail(`для ${target}/${port} требуется одна связь`);
+        return find(links[0].source) ?? fail('отсутствует нода по ссылке');
+    };
+    const l: LegacyV2Level = { version: 2, id: old.id, name: old.name, nodes: [], edges: structuredClone(old.edges), grid: { ...old.grid }, placements: structuredClone(old.placements) };
     const machines = old.nodes.filter(n => n.type === 'lathe');
     const production = old.nodes.some(n => n.type === 'task' || n.type === 'wait');
     const processByMachine = new Map<string, {
@@ -119,4 +135,30 @@ export function migrateV1(old: LegacyLevel): Level {
     if (production && machines.length !== 1)
         fail('производственный уровень требует один станок');
     return l;
+}
+export function migrateV2(old: LegacyV2Level): Level {
+    const nodes = structuredClone(old.nodes);
+    for (const n of nodes) {
+        if (n.type === 'warehouse')
+            n.params.mode = 'final';
+        if (n.type === 'check')
+            n.params.checkResult = false;
+    }
+    const points: Level['grid']['points'] = [];
+    const placements: Level['placements'] = [];
+    for (const p of old.placements) {
+        let point = points.find(point => point.x === p.x && point.y === p.y);
+        if (!point) {
+            point = { id: `point-${p.x}-${p.y}`, x: p.x, y: p.y };
+            points.push(point);
+        }
+        placements.push({ nodeId: p.nodeId, pointId: point.id });
+    }
+    if (nodes.some(n => ['blank', 'lathe', 'warehouse'].includes(n.type))) {
+        let id = 'map';
+        while (nodes.some(n => n.id === id))
+            id += '-migrated';
+        nodes.push(makeNode('map', id, { x: 0, y: 900 }));
+    }
+    return { version: 3, id: old.id, name: old.name, nodes, edges: structuredClone(old.edges), grid: { ...old.grid, points }, placements };
 }

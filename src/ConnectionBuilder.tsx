@@ -1,13 +1,13 @@
 import {useState} from 'react';
-import {registry,type Level} from './level';
+import {registry,nodePorts,portsCompatible,type Level} from './level';
 import {connectionIssue,nodeLabel,type ConnectionDefinition} from './connections';
 interface Props {level:Level;onCreate:(edge:ConnectionDefinition)=>boolean;onClose:()=>void}
 export function ConnectionBuilder({level,onCreate,onClose}:Props){
-  const outputs=level.nodes.flatMap(node=>registry[node.type].outputs.map(port=>({key:JSON.stringify([node.id,port.id]),nodeId:node.id,port,label:`${nodeLabel(level,node.id)} → ${port.label}`})));
+  const outputs=level.nodes.flatMap(node=>nodePorts(node).outputs.map(port=>({key:JSON.stringify([node.id,port.id]),nodeId:node.id,port,label:`${nodeLabel(level,node.id)} → ${port.label}`})));
   const [sourceKey,setSourceKey]=useState(outputs[0]?.key??'');
   const [targetKey,setTargetKey]=useState('');
   const source=outputs.find(output=>output.key===sourceKey)??outputs[0];
-  const inputs=source?level.nodes.flatMap(node=>registry[node.type].inputs.filter(port=>port.type===source.port.type).map(port=>{
+  const inputs=source?level.nodes.flatMap(node=>nodePorts(node).inputs.filter(port=>portsCompatible(source.port,port)).map(port=>{
     const edge={source:source.nodeId,sourceHandle:source.port.id,target:node.id,targetHandle:port.id};
     return {key:JSON.stringify([node.id,port.id]),edge,label:`${nodeLabel(level,node.id)} ← ${port.label}`,error:connectionIssue(level,edge)};
   })):[];

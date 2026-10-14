@@ -1,4 +1,5 @@
-import { registry, portPair, sourceNode, operations, sections, TOOLS, type Level, type LevelNode, type Params, type OperationSpec } from './level';
+import { registry, nodePorts, portsCompatible, portPair, sourceNode, operations, sections, TOOLS, type Level, type LevelNode, type Params, type OperationSpec } from './level';
+import { producedPart, incomingPart, operationCompatibility, requirementsMachine, warehouseProducer } from './productionGraph';
 import { validateImageData, MAX_TOTAL_IMAGE_BYTES } from './imageData';
 export interface Issue {
     nodeId?: string;
@@ -37,8 +38,8 @@ export function operationErrors(ops: unknown): string[] {
 export function validateLevel(level: Level): Issue[] {
     const issues: Issue[] = [];
     const add = (message: string, nodeId?: string) => issues.push({ message, nodeId });
-    if (level.version !== 2)
-        add('Требуется формат v2 после миграции.');
+    if (level.version !== 3)
+        add('Требуется формат v3 после миграции.');
     if (!level.name.trim())
         add('Укажите название уровня.');
     const ids = new Set<string>();
@@ -111,9 +112,13 @@ export function validateLevel(level: Level): Issue[] {
     if (!count('finish'))
         add('Требуется завершение уровня.');
     const production = count('task') > 0 || count('wait') > 0;
-    for (const kind of ['blank', 'tool', 'process', 'lathe', 'warehouse', 'part'])
-        if (production ? count(kind) !== 1 : count(kind) > 1)
-            add(`На первом этапе ${production ? 'требуется ровно один' : 'разрешён не более чем один'} объект «${registry[kind as keyof typeof registry].title}».`);
+    if (count('blank') !== (production ? 1 : Math.min(count('blank'), 1)))
+        add('Допускается одна физическая заготовка.');
+    for (const kind of ['lathe', 'warehouse', 'tool', 'process', 'part'])
+        if (production && !count(kind))
+            add(`Производственный уровень требует «${registry[kind as keyof typeof registry].title}».`);
+    if (count('map') > 1 || production && count('map') !== 1)
+        add('На производственном уровне требуется одна нода «Карта».');
     if (production && (!count('task') || !count('wait')))
         add('Производственный сценарий требует задание и ожидание детали.');
     const edgeIds = new Set<string>(), incoming = new Map<string, number>(), outgoing = new Map<string, number>();
@@ -126,7 +131,7 @@ export function validateLevel(level: Level): Issue[] {
             add('Связь ссылается на отсутствующую ноду или порт.', e.target);
             continue;
         }
-        if (pair.input.type !== pair.output.type)
+        if (!portsCompatible(pair.output, pair.input))
             add('Несовместимые порты данных/выполнения.', e.target);
         const key = `${e.target}:${e.targetHandle}`;
         incoming.set(key, (incoming.get(key) ?? 0) + 1);
@@ -143,23 +148,31 @@ export function validateLevel(level: Level): Issue[] {
         const def = registry[n.type];
         if (!def)
             continue;
-        for (const p of def.inputs) {
+        for (const p of nodePorts(n).inputs) {
             const checkRequired = n.type === 'check' && n.params[`check${p.id[0].toUpperCase()}${p.id.slice(1)}`] === true;
-            if ((p.required || checkRequired) && !incoming.has(`${n.id}:${p.id}`))
+            const resultRequired = n.type === 'check' && n.params.checkResult === true && ['detail', 'requirements'].includes(p.id);
+            if ((p.required || checkRequired || resultRequired) && !incoming.has(`${n.id}:${p.id}`))
                 add(`Не подключён вход «${p.label}».`, n.id);
         }
-        for (const p of def.outputs.filter(p => p.type === 'execution'))
-            if (!outgoing.has(`${n.id}:${p.id}`))
+        for (const p of nodePorts(n).outputs.filter(p => p.type === 'execution'))
+            if (!(n.type === 'hint' && level.edges.some(e => e.target === n.id && e.targetHandle === 'event')) && !outgoing.has(`${n.id}:${p.id}`))
                 add(`Не подключён выход выполнения «${p.label}».`, n.id);
     }
     const visited = new Set<string>(), stack = new Set<string>();
-    function visit(id: string) { if (stack.has(id)) {
-        add('Циклы не поддерживаются.', id);
-        return;
-    } if (visited.has(id))
-        return; visited.add(id); stack.add(id); for (const e of level.edges.filter(e => e.source === id))
-        if (ids.has(e.target))
-            visit(e.target); stack.delete(id); }
+    function visit(id: string) {
+        if (stack.has(id)) {
+            add('Циклы не поддерживаются.', id);
+            return;
+        }
+        if (visited.has(id))
+            return;
+        visited.add(id);
+        stack.add(id);
+        for (const e of level.edges.filter(e => e.source === id))
+            if (ids.has(e.target))
+                visit(e.target);
+        stack.delete(id);
+    }
     for (const n of level.nodes)
         visit(n.id);
     // Check every execution path: merges are allowed only as alternatives, never concurrent execution.
@@ -179,9 +192,8 @@ export function validateLevel(level: Level): Issue[] {
         if (n.type === 'wait' && !hasTask)
             add('Ожидание требует ранее активированного задания на каждом пути.', id);
         if (n.type === 'task') {
-            if (hasTask)
-                add('Повторный производственный этап на одном пути не поддерживается.', id);
             hasTask = true;
+            hasWait = false;
         }
         if (n.type === 'wait')
             hasWait = true;
@@ -196,53 +208,112 @@ export function validateLevel(level: Level): Issue[] {
     }
     if (one('start'))
         scenario(one('start')!.id, false, false);
-    for (const n of level.nodes.filter(n => registry[n.type]?.inputs.some(p => p.type === 'execution') || n.type === 'start'))
+    for (const n of level.nodes.filter(n => (registry[n.type]?.inputs.some(p => p.type === 'execution') || n.type === 'start') && !(n.type === 'hint' && level.edges.some(e => e.target === n.id && e.targetHandle === 'event'))))
         if (!reachable.has(n.id))
             add('Нода сценария не достижима от начала уровня.', n.id);
     for (const m of level.nodes.filter(n => n.type === 'lathe')) {
-        const b = sourceNode(level, m, 'blank'), t = sourceNode(level, m, 'tool'), p = sourceNode(level, m, 'process');
-        if (!b || !p)
-            continue;
-        const ops = operations(p);
-        if (m.params.kind === 'lathe') {
-            if (b.params.shape !== 'cylinder' || t?.params.category !== 'turning' || t?.params.kind !== 'passing' || ops.some(o => o.kind !== 'turning'))
-                add('Токарный станок поддерживает цилиндр, проходной резец и продольное точение.', m.id);
-            let total = 0;
-            for (const o of ops)
-                if (o.kind === 'turning') {
-                    total += o.length;
-                    if (o.diameter >= Number(b.params.diameter))
-                        add('Конечный диаметр должен быть меньше диаметра заготовки.', p.id);
-                }
-            if (total > Number(b.params.length) + 1e-6)
-                add('Суммарная длина участков операций превышает длину заготовки.', p.id);
+        try {
+            const incoming = incomingPart(level, m), process = sourceNode(level, m, 'process'), tool = sourceNode(level, m, 'tool');
+            if (process)
+                for (const error of operationCompatibility(incoming, String(m.params.kind), { category: String(tool?.params.category ?? (m.params.kind === 'mill' ? 'milling' : 'turning')), kind: String(tool?.params.kind ?? (m.params.kind === 'mill' ? 'face' : 'passing')) }, operations(process)))
+                    add(error, m.id);
+            producedPart(level, m);
         }
-        else if (m.params.kind === 'mill') {
-            if (b.params.shape !== 'block' || t?.params.category !== 'milling' || !['end', 'face'].includes(String(t?.params.kind)) || ops.some(o => o.kind !== 'milling'))
-                add('Фрезерный станок поддерживает брусок, концевую/торцевую фрезу и снятие верхней плоскости.', m.id);
-            const depth = ops.reduce((sum, o) => sum + (o.kind === 'milling' ? o.depth : 0), 0);
-            if (depth >= Number(b.params.height))
-                add('Суммарная глубина снятия должна оставлять положительную высоту бруска.', p.id);
+        catch (error) {
+            if (!issues.some(e => e.nodeId === m.id && e.message === (error as Error).message))
+                add((error as Error).message, m.id);
+        }
+        if (production && !level.nodes.some(w => w.type === 'wait' && requirementsMachine(level, w)?.id === m.id))
+            add('Подключите результат станка к ожиданию и складу.', m.id);
+    }
+    for (const n of level.nodes) {
+        if (n.type === 'hint') {
+            const event = level.edges.some(e => e.target === n.id && e.targetHandle === 'event'), exec = level.edges.some(e => e.target === n.id && e.targetHandle === 'in');
+            if (event === exec)
+                add('Подсказку подключают либо к сценарию, либо к событию, но не к обоим.', n.id);
+            if (event && level.edges.some(e => e.source === n.id && portPair(level, e)?.output.type === 'execution'))
+                add('Событийная подсказка не имеет продолжения основного сценария.', n.id);
+        }
+        if (n.type === 'after') {
+            const id = String(n.params.objectId ?? '');
+            if (id && !level.nodes.some(o => o.id === id) && !level.nodes.filter(o => o.type === 'process').some(p => operations(p).some(o => o.id === id)))
+                add('Объект фильтра события отсутствует.', n.id);
         }
     }
-    for (const w of level.nodes.filter(n => n.type === 'wait'))
-        if (sourceNode(level, sourceNode(level, w, 'part'), 'machine')?.id !== one('lathe')?.id)
-            add('Полученная деталь должна ссылаться на единственный станок уровня.', w.id);
+    // Validate runtime data dependencies independently of execution edges. A producer must precede its consumer on every path.
+    function predecessors(id: string): string[] { return level.edges.filter(e => e.target === id && portPair(level, e)?.output.type === 'execution').map(e => e.source); }
+    function dominatedBy(id: string, producer: string, seen = new Set<string>()): boolean { if (id === producer)
+        return true; if (seen.has(id))
+        return false; const n = level.nodes.find(n => n.id === id); if (!n || n.type === 'start')
+        return false; const next = new Set(seen); next.add(id); const prev = predecessors(id); return prev.length > 0 && prev.every(p => dominatedBy(p, producer, next)); }
+    for (const w of level.nodes.filter(n => n.type === 'wait')) {
+        const m = requirementsMachine(level, w);
+        const input = sourceNode(level, m, 'blank');
+        if (!input || input.type === 'blank')
+            continue;
+        const prior = input.type === 'wait' ? input : level.nodes.find(n => n.type === 'wait' && sourceNode(level, n, 'warehouse')?.id === input.id);
+        if (!prior || !dominatedBy(w.id, prior.id))
+            add('Ожидание предыдущего этапа должно предшествовать потребителю на каждом пути.', w.id);
+        if (input.type === 'wait' && sourceNode(level, input, 'warehouse')?.params.mode !== 'intermediate')
+            add('Передача фактической детали требует промежуточного склада.', m?.id);
+    }
+    for (const n of level.nodes.filter(n => n.type === 'check'))
+        for (const port of ['blank', 'detail']) {
+            if (port === 'blank' && n.params.checkBlank !== true || port === 'detail' && n.params.checkResult !== true)
+                continue;
+            const input = sourceNode(level, n, port);
+            const wait = input?.type === 'wait' ? input : input?.type === 'warehouse' ? level.nodes.find(w => w.type === 'wait' && sourceNode(level, w, 'warehouse')?.id === input.id) : undefined;
+            if (wait && !dominatedBy(n.id, wait.id))
+                add('Проверка результата должна идти после ожидания, которое выдаёт фактическую деталь.', n.id);
+        }
+    // One item follows the last successful storage step on each alternative execution path.
+    const materialPaths=new Set<string>();
+    function itemPath(id:string,lastWait:string|null,stack=new Set<string>()){
+      const key=`${id}:${lastWait??''}`;if(stack.has(id)||materialPaths.has(key))return;materialPaths.add(key);
+      const node=level.nodes.find(n=>n.id===id);if(!node)return;
+      if(node.type==='wait'){
+        const machine=requirementsMachine(level,node),input=sourceNode(level,machine,'blank');
+        const prior=lastWait?level.nodes.find(n=>n.id===lastWait):undefined;
+        if(prior&&requirementsMachine(level,prior)?.id!==machine?.id){
+          const sourceWarehouse=sourceNode(level,prior,'warehouse');
+          if(input?.type==='blank')add('Следующий станок должен получать фактическую деталь с промежуточного склада или выхода предыдущего ожидания, а не исходную заготовку заново.',machine?.id);
+          else if(input?.type==='warehouse'&&input.id!==sourceWarehouse?.id||input?.type==='wait'&&input.id!==prior.id)add('Источник следующего этапа должен ссылаться на последний склад или ожидание этого пути: прежний склад уже пуст.',machine?.id);
+        }
+        lastWait=node.id;
+      }
+      const nextStack=new Set(stack);nextStack.add(id);
+      for(const e of level.edges.filter(e=>e.source===id&&portPair(level,e)?.output.type==='execution'))itemPath(e.target,lastWait,nextStack);
+    }
+    if(one('start'))itemPath(one('start')!.id,null);
     // Node position/size belong to editor storage; production validation deliberately ignores them.
     const { width, height } = level.grid;
     if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 || width > 8 || height > 8)
         add('Размер сетки: целые числа от 1 до 8.');
+    if (!Array.isArray(level.grid.points)) {
+        add('Укажите разрешённые точки карты.');
+        return issues;
+    }
+    const pointIds = new Set<string>(), cells = new Set<string>();
+    for (const p of level.grid.points) {
+        if (pointIds.has(p.id) || cells.has(`${p.x},${p.y}`))
+            add('Точки карты должны иметь уникальные ID и клетки.');
+        pointIds.add(p.id);
+        cells.add(`${p.x},${p.y}`);
+        if (!Number.isInteger(p.x) || !Number.isInteger(p.y) || p.x < 0 || p.y < 0 || p.x >= width || p.y >= height)
+            add('Точка за границами карты.');
+    }
+    if (level.grid.points.length > width * height)
+        add('Число точек превышает площадь карты.');
     const occupied = new Set<string>(), placed = new Set<string>();
     for (const p of level.placements) {
         const n = level.nodes.find(n => n.id === p.nodeId);
         if (!n || !['blank', 'lathe', 'warehouse'].includes(n.type))
             add('Размещение ссылается на отсутствующий или неподходящий объект.', p.nodeId);
-        if (!Number.isInteger(p.x) || !Number.isInteger(p.y) || p.x < 0 || p.y < 0 || p.x >= width || p.y >= height)
-            add('Объект находится за границами карты.', p.nodeId);
-        const key = `${p.x},${p.y}`;
-        if (occupied.has(key))
-            add('На клетке уже находится другой объект.', p.nodeId);
-        occupied.add(key);
+        if (!pointIds.has(p.pointId))
+            add('Размещение допускается только на разрешённой точке.', p.nodeId);
+        if (occupied.has(p.pointId))
+            add('На точке уже находится другой объект.', p.nodeId);
+        occupied.add(p.pointId);
         if (placed.has(p.nodeId))
             add('Объект размещён несколько раз.', p.nodeId);
         placed.add(p.nodeId);

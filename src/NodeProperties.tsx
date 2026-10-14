@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { registry, TOOLS, operations, sections, defaultOperation, sourceNode, type Level, type LevelNode, type Params, type ParamValue, type OperationSpec, type Section } from './level';
 import { uploadImage, MAX_TOTAL_IMAGE_BYTES, validateImageData } from './images';
 import { dimensions, expectedResult } from './manufacturing';
+import {producedPart} from './productionGraph';
 import { validateLevel } from './validation';
 export function OperationList({ value, onChange, label = 'Операции' }: {
     value: OperationSpec[];
@@ -29,7 +30,7 @@ export function NodeProperties({ node, level, onPatch, onNotice }: {
     function update(key: string, value: ParamValue) { const patch: Params = { [key]: value }; if (node.type === 'tool' && key === 'category')
         patch.kind = value === 'milling' ? 'face' : 'passing'; if (node.type === 'part' && key === 'shape')
         patch.sections = []; onPatch(patch); }
-    return <>{registry[node.type].parameters.filter(p => (!p.when || p.when(node.params)) && !(node.type === 'check' && ['expectedMaterial', 'expectedShape'].includes(p.key) && node.params.checkBlank !== true)).map(p => <label key={p.key}>{p.label}{p.type === 'boolean' ? <input type="checkbox" style={{ width: 'auto', marginLeft: 8 }} checked={node.params[p.key] === true} onChange={e => update(p.key, e.target.checked)}/> : p.type === 'textarea' ? <textarea value={String(node.params[p.key] ?? '')} onChange={e => update(p.key, e.target.value)}/> : p.type === 'select' ? <select value={String(node.params[p.key])} onChange={e => update(p.key, e.target.value)}>{(node.type === 'tool' && p.key === 'kind' ? TOOLS[node.params.category as keyof typeof TOOLS] ?? [] : p.options ?? []).map(o => <option value={o.value} key={o.value}>{o.label}</option>)}</select> : <input type={p.type === 'number' ? 'number' : 'text'} step="any" value={String(node.params[p.key] ?? '')} onChange={e => update(p.key, p.type === 'number' ? Number(e.target.value) : e.target.value)}/>}</label>)}
+    return <>{registry[node.type].parameters.filter(p => (!p.when || p.when(node.params)) && !(node.type === 'check' && ['expectedMaterial', 'expectedShape'].includes(p.key) && node.params.checkBlank !== true)).map(p => <label key={p.key}>{p.label}{p.type === 'boolean' ? <input type="checkbox" style={{ width: 'auto', marginLeft: 8 }} checked={node.params[p.key] === true} onChange={e => update(p.key, e.target.checked)}/> : p.type === 'textarea' ? <textarea value={String(node.params[p.key] ?? '')} onChange={e => update(p.key, e.target.value)}/> : node.type==='after'&&p.key==='objectId'?<select value={String(node.params.objectId??'')} onChange={e=>update('objectId',e.target.value)}><option value="">Любое подходящее действие</option>{level.nodes.filter(n=>['blank','lathe','warehouse','check'].includes(n.type)).map(n=><option key={n.id} value={n.id}>{String(n.params.name??n.params.title??registry[n.type].title)} ({n.id})</option>)}{level.nodes.filter(n=>n.type==='process').flatMap(n=>operations(n).map(o=><option key={`${n.id}:${o.id}`} value={o.id}>Операция {o.id}</option>))}</select>:p.type === 'select' ? <select value={String(node.params[p.key])} onChange={e => update(p.key, e.target.value)}>{(node.type === 'tool' && p.key === 'kind' ? TOOLS[node.params.category as keyof typeof TOOLS] ?? [] : p.options ?? []).map(o => <option value={o.value} key={o.value}>{o.label}</option>)}</select> : <input type={p.type === 'number' ? 'number' : 'text'} step="any" value={String(node.params[p.key] ?? '')} onChange={e => update(p.key, p.type === 'number' ? Number(e.target.value) : e.target.value)}/>}</label>)}
  {node.type === 'intro' && <section><label>Изображение (PNG, JPEG, WebP)<input type="file" accept="image/png,image/jpeg,image/webp" onChange={async (e) => { const file = e.target.files?.[0]; e.target.value = ''; if (!file)
         return; const seq = ++uploadSequence.current; try {
         const image = await uploadImage(file);
@@ -57,7 +58,7 @@ export function NodeProperties({ node, level, onPatch, onNotice }: {
         const errors = validateLevel(level).filter(e => [m.id, b.id, p.id].includes(e.nodeId ?? ''));
         if (errors.length)
             throw new Error(errors[0].message);
-        const result = expectedResult({ id: b.id, name: String(b.params.name), material: String(b.params.material), ...dimensions(b.params) }, operations(p));
+        const result = producedPart(level,m);
         const patch: Params = { ...dimensions(result), material: result.material, sections: result.sections };
         onPatch(patch);
         onNotice('Требования скопированы один раз. Дальше они редактируются независимо.');

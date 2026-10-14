@@ -58,3 +58,8 @@ test('milled block uses the actual reduced height and there is only one part on 
  const stored=recordingGraphics();new WorkshopDrawing(stored.graphics).render(freeze({...base,production:{stage:'stored',selected:null,target:null,blank:{id:'blank',shape:'block',length:60,width:40,height:20},part:{shape:'block',length:60,width:40,height:15,sections:[]}}}),0);
  assert.equal(stored.calls.filter(c=>c.name==='fillStyle'&&c.args[0]===0xd6e1e2).length,1);
 });
+
+test('multiple finished machines and two stores draw one physical part at its actual location',()=>{
+ const {graphics,calls}=recordingGraphics();const view:WorkshopDrawingData={grid:{width:5,height:1},selected:null,nodes:[{id:'blank',type:'blank'},{id:'one',type:'lathe'},{id:'two',type:'lathe'},{id:'mid',type:'warehouse'},{id:'final',type:'warehouse'}],placements:[{nodeId:'blank',x:0,y:0},{nodeId:'one',x:1,y:0},{nodeId:'two',x:2,y:0},{nodeId:'mid',x:3,y:0},{nodeId:'final',x:4,y:0}],production:{stage:'stored',selected:null,target:null,blank:{id:'blank',shape:'cylinder',diameter:20,length:60},part:{sections:[{diameter:12,length:30}]},location:{kind:'warehouse',id:'mid'},machines:{one:{stage:'finished',itemId:null},two:{stage:'empty',itemId:null}},warehouses:{mid:{itemId:'blank'},final:{itemId:null}}}};
+ new WorkshopDrawing(graphics).render(freeze(view),0);assert.equal(calls.filter(c=>c.name==='fillStyle'&&c.args[0]===0x9db0b9).length,2);const metal=calls[calls.findIndex(c=>c.name==='fillStyle'&&c.args[0]===0x9db0b9)+1];assert.equal(metal.args[0][0].x,projectCell(3,0).x-17);
+});

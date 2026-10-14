@@ -2,11 +2,15 @@ import type Phaser from 'phaser';
 
 export interface DrawingPlacement {readonly nodeId:string;readonly x:number;readonly y:number}
 export interface WorkshopDrawingData {
-  readonly grid:{readonly width:number;readonly height:number};
+  readonly grid:{readonly width:number;readonly height:number;readonly points?:readonly {readonly id:string;readonly x:number;readonly y:number}[]};
   readonly placements:readonly DrawingPlacement[];
   readonly nodes:readonly {readonly id:string;readonly type:string;readonly shape?:string;readonly diameter?:number;readonly length?:number;readonly width?:number;readonly height?:number;readonly machineKind?:string}[];
   readonly selected:string|null;
   readonly production?:{
+    readonly targetIds?:readonly string[];
+    readonly location?:{readonly kind:string;readonly id:string}|null;
+    readonly machines?:Readonly<Record<string,{readonly stage:string;readonly itemId:string|null}>>;
+    readonly warehouses?:Readonly<Record<string,{readonly itemId:string|null}>>;
     readonly stage:string;readonly selected:string|null;readonly target:string|null;
     readonly blank:{readonly id:string;readonly shape?:string;readonly diameter?:number;readonly length:number;readonly width?:number;readonly height?:number};
     readonly part:null|{readonly shape?:string;readonly length?:number;readonly width?:number;readonly height?:number;readonly sections:readonly {readonly diameter:number;readonly length:number}[]};
@@ -67,20 +71,24 @@ export class WorkshopDrawing {
       const c=this.center(x,y);const p=level.placements.find(p=>p.x===x&&p.y===y);
       this.poly([c.x,c.y-30,c.x+58,c.y,c.x,c.y+30,c.x-58,c.y],(x+y)%2===0?0xe0e8d9:0xe6ecdf);
       g.lineStyle(1,0xcbd7c5).strokePoints([{x:c.x,y:c.y-30},{x:c.x+58,y:c.y},{x:c.x,y:c.y+30},{x:c.x-58,y:c.y}],true);
+      if(!production&&this.view.grid.points?.some(point=>point.x===x&&point.y===y)){g.lineStyle(2,p?0x638e73:0x72aeb1).strokeCircle(c.x,c.y,7);}
       if(!production&&p?.nodeId===selected){g.lineStyle(3,0xcaa04b).strokeEllipse(c.x,c.y,102,48);}
     }
     const placements=[...level.placements].sort((a,b)=>(a.x+a.y)-(b.x+b.y));
     for(const p of placements)this.object(p,s?.selected??selected??null);
+    if(!production)for(const point of this.view.grid.points??[]){const c=this.center(point.x,point.y);const occupied=placements.some(p=>p.x===point.x&&p.y===point.y);g.fillStyle(occupied?0x638e73:0x72aeb1).fillCircle(c.x+38,c.y+4,5);g.lineStyle(1,0xedf4ef).strokeCircle(c.x+38,c.y+4,5);}
   }
   private object(p:DrawingPlacement,selection:string|null){
     const level=this.view;const production=this.view.production;
     const n=level.nodes.find(n=>n.id===p.nodeId);if(!n)return;
     const c=this.center(p.x,p.y),x=c.x,y=c.y;
-    const s=this.view.production;
+    const data=this.view.production;
+    const localStage=!data?.location?data?.stage:data.location.id===n.id?(data.location.kind==='table'?'table':data.location.kind==='warehouse'?'stored':data.machines?.[n.id]?.stage):'empty';
+    const s=data?{...data,stage:localStage}:undefined;
     this.g.fillStyle(0x507254,.12).fillEllipse(x,y+17,105,40);
     const partHere=n.type==='blank'&&(!production||s?.stage==='table')||n.type==='lathe'&&s?.stage==='finished';
     if((selection===n.id&&(n.type!=='blank'||partHere))||(partHere&&selection===production?.blank.id))this.g.lineStyle(3,0xcaa04b).strokeEllipse(x,y+7,110,53);
-    if(s?.target&&(n.type==='lathe'&&s.target==='machine'||n.type==='warehouse'&&s.target==='warehouse'))this.g.lineStyle(3,0x72aeb1).strokeEllipse(x,y+8,112,55);
+    if(s?.target&&(!s.targetIds||s.targetIds.includes(n.id))&&(n.type==='lathe'&&s.target==='machine'||n.type==='warehouse'&&s.target==='warehouse'))this.g.lineStyle(3,0x72aeb1).strokeEllipse(x,y+8,112,55);
     if(n.type==='blank'){
       this.box(x-32,y+8,9,5,47,0xae9870,0x8e7d59,0x73694d);this.box(x+25,y+24,9,5,47,0xae9870,0x8e7d59,0x73694d);
       this.box(x-27,y-8,75,22,10,0xd0b98e,0xb49b75,0x938263);
