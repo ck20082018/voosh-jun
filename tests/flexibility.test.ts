@@ -1,6 +1,6 @@
 import {test} from 'node:test';
 import assert from 'node:assert/strict';
-import {welcomeLevel,twoOperationsLevel,exampleLevel} from '../src/level';
+import {welcomeLevel,twoOperationsLevel,exampleLevel,operations} from '../src/level';
 import {validateLevel} from '../src/validation';
 import {compileLevel} from '../src/compiler';
 import {FactoryCore} from '../src/core';
@@ -15,9 +15,9 @@ test('welcome-only level validates, loads and finishes without production resour
 });
 test('two operations run in order, cannot store intermediate part, retain both sections',()=>{
  const level=twoOperationsLevel();assert.deepEqual(validateLevel(level),[]);const core=new FactoryCore(compileLevel(level));core.command('start');core.click('blank');core.command('install');core.click('lathe');
- assert.equal(core.currentOperation.diameter,12);core.command('process');assert.equal(core.command('process'),false);core.tick(3000);
+ assert.equal((core.currentOperation.kind==='turning'?core.currentOperation.diameter:0),12);core.command('process');assert.equal(core.command('process'),false);core.tick(3000);
  assert.equal(core.state.stage,'loaded');assert.equal(core.state.operationIndex,1);assert.equal(core.state.part?.sections.length,1);core.click('blank');assert.equal(core.command('store'),false);assert.equal(core.click('warehouse'),true);assert.equal(core.state.count,0);
- core.click('lathe');assert.equal(core.currentOperation.diameter,8);core.command('process');core.tick(1999);assert.equal(core.state.stage,'processing');core.tick(1);assert.equal(core.state.stage,'finished');assert.equal(core.command('process'),false);
+ core.click('lathe');assert.equal((core.currentOperation.kind==='turning'?core.currentOperation.diameter:0),8);core.command('process');core.tick(1999);assert.equal(core.state.stage,'processing');core.tick(1);assert.equal(core.state.stage,'finished');assert.equal(core.command('process'),false);
  assert.deepEqual(core.state.part?.sections,[{diameter:12,length:30},{diameter:8,length:15}]);core.click('blank');core.command('store');core.click('warehouse');assert.equal(core.state.completed,true);assert.equal(core.state.count,1);
  assert.equal(core.log.filter(e=>e.type==='processing-finished').length,2);
 });
@@ -25,8 +25,8 @@ test('reset during the second operation removes intermediate state and starts wi
  const core=new FactoryCore(compileLevel(twoOperationsLevel()));core.command('start');core.click('blank');core.command('install');core.click('lathe');core.command('process');core.tick(3000);core.command('process');core.tick(1000);core.reset();core.tick(9000);assert.equal(core.state.operationIndex,0);assert.equal(core.state.part,null);assert.equal(core.state.stage,'table');assert.equal(core.subscriptionCount,0);
 });
 test('operation chains reject excessive section length and cycles',()=>{
- const level=twoOperationsLevel();level.nodes.find(n=>n.id==='turning-2')!.params.length=40;assert.ok(validateLevel(level).some(e=>e.message.includes('Суммарная')));
- level.edges.push({id:'cycle',source:'turning-2',sourceHandle:'operation',target:'turning',targetHandle:'previous'});assert.ok(validateLevel(level).some(e=>e.message.includes('Циклы')));
+ const level=twoOperationsLevel();Object.assign(operations(level.nodes.find(n=>n.type==='process')!)[1],{length:40});assert.ok(validateLevel(level).some(e=>e.message.includes('Суммарная')));
+ level.edges.push({id:'cycle',source:'wait',sourceHandle:'out',target:'intro',targetHandle:'in'});assert.ok(validateLevel(level).some(e=>e.message.includes('Циклы')));
 });
 test('node resizing persists separately from measurements and survives strict JSON import',()=>{
  const level=welcomeLevel();const resized=updateLevelFromFlow(level,[{type:'dimensions',id:'intro',dimensions:{width:420,height:280},resizing:false,setAttributes:true}]);assert.deepEqual(resized.nodes.find(n=>n.id==='intro')!.size,{width:420,height:280});assert.deepEqual(parseLevel(serializeLevel(resized)),resized);
