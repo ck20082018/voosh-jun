@@ -47,6 +47,28 @@ export function GraphEditor({level,selected,focusNodeId,setLevel,setSelected,onI
   const [pending,setPending]=useState<{nodeId:string;portId:string}|null>(null);
   const [builder,setBuilder]=useState(false);
   const instance=useRef<ReactFlowInstance<EditorNode,Edge>|null>(null);
+  const host=useRef<HTMLDivElement>(null);
+  const gesture=useRef<{x:number;y:number;nodeId:string|null;previous:Set<string>;additive:boolean}|null>(null);
+  const [selectionBox,setSelectionBox]=useState<{left:number;top:number;width:number;height:number}|null>(null);
+  useEffect(()=>{
+    function move(event:MouseEvent){
+      const start=gesture.current,flow=instance.current,bounds=host.current?.getBoundingClientRect();
+      if(!start||!flow||!bounds)return;
+      const left=Math.min(start.x,event.clientX),top=Math.min(start.y,event.clientY);
+      const width=Math.abs(event.clientX-start.x),height=Math.abs(event.clientY-start.y);
+      setSelectionBox({left:left-bounds.left,top:top-bounds.top,width,height});
+      const a=flow.screenToFlowPosition({x:left,y:top}),b=flow.screenToFlowPosition({x:left+width,y:top+height});
+      const ids=new Set(start.additive?start.previous:[]);
+      if(width+height<5&&start.nodeId)ids.add(start.nodeId);
+      else for(const node of flow.getIntersectingNodes({x:a.x,y:a.y,width:b.x-a.x,height:b.y-a.y},false))if(node.type==='factory')ids.add(node.id);
+      setNodes(current=>current.map(node=>({...node,selected:ids.has(node.id)})));
+      setSelected(ids.values().next().value??null);
+    }
+    function end(event:MouseEvent){if(!gesture.current||event.button!==2)return;move(event);gesture.current=null;setSelectionBox(null);}
+    function cancel(){gesture.current=null;setSelectionBox(null);}
+    window.addEventListener('mousemove',move);window.addEventListener('mouseup',end);window.addEventListener('blur',cancel);
+    return()=>{window.removeEventListener('mousemove',move);window.removeEventListener('mouseup',end);window.removeEventListener('blur',cancel);};
+  },[setNodes,setSelected]);
   useEffect(()=>{setNodes(current=>reconcileEditorNodes(level,selected,current));},[level.nodes,level.groups,selected,setNodes]);
   useEffect(()=>{setEdges(current=>reconcileEdges(level,current));},[level.edges,level.nodes,setEdges]);
   useEffect(()=>()=>onInit(null),[onInit]);
@@ -62,7 +84,13 @@ export function GraphEditor({level,selected,focusNodeId,setLevel,setSelected,onI
     if(!pending){onNotice('Сначала нажмите подпись выхода справа у другой ноды.');return;}
     create({source:pending.nodeId,sourceHandle:pending.portId,target:nodeId,targetHandle:portId});
   }
-  return <PortsContext.Provider value={{level,pending,choose}}><div className="flow-host" onDragOver={event=>{event.preventDefault();event.dataTransfer.dropEffect='copy';}} onDrop={event=>{
+  return <PortsContext.Provider value={{level,pending,choose}}><div className="flow-host" ref={host} onContextMenu={event=>event.preventDefault()} onMouseDownCapture={event=>{
+    const target=event.target as Element;
+    if(event.button!==2||!target.closest('.react-flow__pane')||target.closest('.react-flow__panel,.react-flow__controls,button,input,select,textarea,.react-flow__handle,.react-flow__resize-control'))return;
+    event.preventDefault();event.stopPropagation();
+    gesture.current={x:event.clientX,y:event.clientY,nodeId:target.closest('.react-flow__node')?.getAttribute('data-id')??null,previous:new Set(instance.current?.getNodes().filter(n=>n.selected).map(n=>n.id)),additive:event.shiftKey};
+    setEdges(current=>current.map(edge=>({...edge,selected:false})));
+  }} onDragOver={event=>{event.preventDefault();event.dataTransfer.dropEffect='copy';}} onDrop={event=>{
     event.preventDefault();const type=event.dataTransfer.getData('application/x-factory-node');
     if(!NODE_TYPES.includes(type as NodeKind)||!instance.current)return;
     const position=instance.current.screenToFlowPosition({x:event.clientX,y:event.clientY});
@@ -83,9 +111,9 @@ export function GraphEditor({level,selected,focusNodeId,setLevel,setSelected,onI
     onEdgesChange(changes);
     const removed=new Set(changes.flatMap(change=>change.type==='remove'?[change.id]:[]));
     if(removed.size)setLevel(current=>({...current,edges:current.edges.filter(edge=>!removed.has(edge.id))}));
-  }} onBeforeDelete={async({nodes,edges})=>prepareEditorDeletion(level,nodes,edges)} onConnect={connect} connectOnClick={false} connectionRadius={35} isValidConnection={connection=>!!connection.source&&!!connection.target&&!!connection.sourceHandle&&!!connection.targetHandle&&!connectionIssue(level,{source:connection.source,target:connection.target,sourceHandle:connection.sourceHandle,targetHandle:connection.targetHandle})} selectionOnDrag panOnDrag={[1,2]} multiSelectionKeyCode="Shift" fitView fitViewOptions={{padding:.15}} minZoom={.25} maxZoom={1.7} deleteKeyCode={['Backspace','Delete']}>
-    <Panel position="top-left"><button disabled={nodes.filter(n=>n.type==='factory'&&n.selected&&!n.data.definition.groupId).length<2} onClick={()=>{const ids=nodes.filter(n=>n.type==='factory'&&n.selected&&!n.data.definition.groupId).map(n=>n.id);setLevel(current=>groupNodes(current,ids));}}>Группировать выделенные</button><small>Shift + клик или рамка выделения</small><button onClick={()=>setBuilder(value=>!value)}>+ Добавить связь</button>{builder&&<ConnectionBuilder level={level} onCreate={create} onClose={()=>setBuilder(false)}/>}</Panel>
+  }} onBeforeDelete={async({nodes,edges})=>prepareEditorDeletion(level,nodes,edges)} onConnect={connect} connectOnClick={false} connectionRadius={35} isValidConnection={connection=>!!connection.source&&!!connection.target&&!!connection.sourceHandle&&!!connection.targetHandle&&!connectionIssue(level,{source:connection.source,target:connection.target,sourceHandle:connection.sourceHandle,targetHandle:connection.targetHandle})} selectionOnDrag={false} selectionKeyCode={null} panOnDrag={[0,1]} multiSelectionKeyCode="Shift" fitView fitViewOptions={{padding:.15}} minZoom={.25} maxZoom={1.7} deleteKeyCode={['Backspace','Delete']}>
+    <Panel position="top-left"><button disabled={nodes.filter(n=>n.type==='factory'&&n.selected&&!n.data.definition.groupId).length<2} onClick={()=>{const ids=nodes.filter(n=>n.type==='factory'&&n.selected&&!n.data.definition.groupId).map(n=>n.id);setLevel(current=>groupNodes(current,ids));}}>Группировать выделенные</button><small>ЛКМ — перемещение поля · ПКМ — рамка · Shift + клик</small><button onClick={()=>setBuilder(value=>!value)}>+ Добавить связь</button>{builder&&<ConnectionBuilder level={level} onCreate={create} onClose={()=>setBuilder(false)}/>}</Panel>
     {pending&&<Panel position="top-right"><button onClick={()=>setPending(null)}>Отменить соединение</button></Panel>}
     <Background gap={22} color="#ccd7cd"/><Controls/><MiniMap nodeColor={node=>['start','intro','task','wait','check','finish','hint'].includes(level.nodes.find(item=>item.id===node.id)?.type??'blank')?'#c9b67f':'#99bfb4'} /><FocusAddedNode id={focusNodeId}/>
-  </ReactFlow>{!nodes.length&&<div className="graph-empty"><strong>Создайте свой уровень</strong><p>Добавляйте ноды кнопками слева или перетаскивайте их сюда.<br/>Начните с ноды «Начало уровня», затем соедините шаги.</p><button className="primary" onClick={()=>onAdd('start')}>+ Добавить начало уровня</button></div>}</div></PortsContext.Provider>;
+  </ReactFlow>{selectionBox&&<div aria-label="Рамка выделения нод" style={{position:'absolute',...selectionBox,border:'1px solid #b99542',background:'#c9b67f33',pointerEvents:'none',zIndex:1001}}/>}{!nodes.length&&<div className="graph-empty"><strong>Создайте свой уровень</strong><p>Добавляйте ноды кнопками слева или перетаскивайте их сюда.<br/>Начните с ноды «Начало уровня», затем соедините шаги.</p><button className="primary" onClick={()=>onAdd('start')}>+ Добавить начало уровня</button></div>}</div></PortsContext.Provider>;
 }

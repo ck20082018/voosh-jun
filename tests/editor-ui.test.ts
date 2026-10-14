@@ -249,3 +249,21 @@ test('editor UI: Shift grouping, rename/color, group drag, membership and frame 
  fireEvent.keyDown(document,{key:'Delete',code:'Delete'});fireEvent.keyUp(document,{key:'Delete',code:'Delete'});await settle();assert.equal(!!view.container.querySelector('.react-flow__node-frame'),false);assert.equal(view.container.querySelectorAll('.react-flow__node').length,12);assert.equal(view.container.querySelectorAll('.react-flow__edge').length,10);assert.deepEqual(nodePosition(start),before);
  fireEvent.click(view.getByRole('button',{name:'Сохранить'}));const stored=JSON.parse(localStorage.getItem('factory-level-v4')!);assert.equal(stored.groups.length,0);assert.equal(stored.nodes.filter((n:{groupId?:string})=>n.groupId).length,0);assert.deepEqual(stored.edges,grouped.edges);
 });
+
+test('editor mouse controls: left pans; right marquee selects at transformed coordinates without moving nodes',async()=>{
+ const {GraphEditor}=await import('../src/GraphEditor');const {exampleLevel}=await import('../src/level');const {useState}=await import('react');
+ type Instance=import('@xyflow/react').ReactFlowInstance<import('../src/editorFlow').EditorNode,import('@xyflow/react').Edge>;
+ let flow:Instance|null=null;const init=(value:Instance|null)=>{flow=value;};const original=exampleLevel();
+ function Harness(){const [level,setLevel]=useState(original),[selected,setSelected]=useState<string|null>(null);return createElement(GraphEditor,{level,selected,focusNodeId:null,setLevel,setSelected,onInit:init,onAdd:()=>{},onNotice:()=>{}});}
+ const view=render(createElement(Harness));await settle();assert.ok(flow);const api=flow as Instance;
+ await act(async()=>{await api.setViewport({x:80,y:60,zoom:.75});});await settle();
+ const pane=view.container.querySelector('.react-flow__pane')!;const before=api.getViewport(),positions=api.getNodes().map(n=>({id:n.id,position:n.position}));
+ fireEvent.mouseDown(pane,{clientX:750,clientY:500,button:0,buttons:1,view:dom.window});fireEvent.mouseMove(dom.window as unknown as Window,{clientX:810,clientY:530,buttons:1,view:dom.window});await settle();fireEvent.mouseUp(dom.window as unknown as Window,{clientX:810,clientY:530,button:0,view:dom.window});await settle();
+ assert.notDeepEqual(api.getViewport(),before);assert.deepEqual(api.getNodes().map(n=>({id:n.id,position:n.position})),positions);assert.equal(view.queryByLabelText('Рамка выделения нод'),null);
+ const p=api.flowToScreenPosition({x:-10,y:-10}),q=api.flowToScreenPosition({x:520,y:220}),viewport=api.getViewport();
+ fireEvent.mouseDown(pane,{clientX:q.x,clientY:q.y,button:2,buttons:2,view:dom.window});fireEvent.mouseMove(dom.window as unknown as Window,{clientX:p.x,clientY:p.y,buttons:2,view:dom.window});await settle();assert.ok(view.getByLabelText('Рамка выделения нод'));fireEvent.mouseUp(dom.window as unknown as Window,{clientX:p.x,clientY:p.y,button:2,view:dom.window});await settle();
+ assert.deepEqual(api.getNodes().filter(n=>n.selected).map(n=>n.id).sort(),['intro','start']);assert.deepEqual(api.getViewport(),viewport);assert.deepEqual(api.getNodes().map(n=>({id:n.id,position:n.position})),positions);assert.equal(view.queryByLabelText('Рамка выделения нод'),null);assert.equal((view.getByRole('button',{name:'Группировать выделенные'}) as HTMLButtonElement).disabled,false);
+ assert.equal(fireEvent.contextMenu(pane),false,'the browser menu must not cover the marquee');
+ const a=api.flowToScreenPosition({x:550,y:-10}),b=api.flowToScreenPosition({x:800,y:220});fireEvent.mouseDown(pane,{clientX:a.x,clientY:a.y,button:2,buttons:2,shiftKey:true,view:dom.window});fireEvent.mouseMove(dom.window as unknown as Window,{clientX:b.x,clientY:b.y,buttons:2,view:dom.window});fireEvent.mouseUp(dom.window as unknown as Window,{clientX:b.x,clientY:b.y,button:2,view:dom.window});await settle();assert.deepEqual(api.getNodes().filter(n=>n.selected).map(n=>n.id).sort(),['intro','start','task']);
+ fireEvent.mouseDown(pane,{clientX:p.x,clientY:p.y,button:2,buttons:2,view:dom.window});fireEvent.mouseMove(dom.window as unknown as Window,{clientX:q.x,clientY:q.y,buttons:2,view:dom.window});await settle();fireEvent.blur(dom.window as unknown as Window);await settle();assert.equal(view.queryByLabelText('Рамка выделения нод'),null);
+});
