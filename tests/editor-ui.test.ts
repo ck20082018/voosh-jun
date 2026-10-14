@@ -112,7 +112,7 @@ test('editor UI: an unfinished custom level can be saved and restored after relo
   fireEvent.change(view.getByLabelText('Название'),{target:{value:'Моя заготовка'}});
   fireEvent.click(view.getByRole('button',{name:'Сохранить'}));await settle();
   assert.ok(view.container.textContent?.includes('Черновик сохранён'));
-  const stored=JSON.parse(localStorage.getItem('factory-level-v3')!);
+  const stored=JSON.parse(localStorage.getItem('factory-level-v4')!);
   assert.equal(stored.nodes.length,1);assert.equal(stored.nodes[0].params.name,'Моя заготовка');assert.equal('measured' in stored.nodes[0],false);
   cleanup();view=render(createElement(App));await settle();
   assert.equal(view.container.querySelectorAll('.react-flow__node').length,1);
@@ -122,7 +122,7 @@ test('editor UI: an unfinished custom level can be saved and restored after relo
 test('editor UI: dragging from an output handle to a free input creates and saves an execution edge',async()=>{
   const {exampleLevel}=await import('../src/level');
   const project=exampleLevel();project.edges=project.edges.filter(edge=>edge.id!=='start-out-intro-in');
-  localStorage.setItem('factory-level-v3',JSON.stringify(project));
+  localStorage.setItem('factory-level-v4',JSON.stringify(project));
   const view=render(createElement(App));await settle();
   assert.equal(view.container.querySelectorAll('.react-flow__edge').length,9);
   const source=view.getByTestId('rf__node-start').querySelector<HTMLElement>('.source[data-handleid="out"]')!;
@@ -134,7 +134,7 @@ test('editor UI: dragging from an output handle to a free input creates and save
   fireEvent.mouseUp(document,{clientX:targetRect.left+4,clientY:targetRect.top+4,button:0,view:dom.window});await settle();
   assert.equal(view.container.querySelectorAll('.react-flow__edge').length,10);
   fireEvent.click(view.getByRole('button',{name:'Сохранить'}));await settle();
-  const stored=JSON.parse(localStorage.getItem('factory-level-v3')!);
+  const stored=JSON.parse(localStorage.getItem('factory-level-v4')!);
   assert.equal(stored.edges.filter((edge:{source:string;target:string})=>edge.source==='start'&&edge.target==='intro').length,1);
   Object.defineProperty(document,'elementFromPoint',{value:()=>null,configurable:true});
 });
@@ -144,16 +144,16 @@ test('editor UI: welcome example runs without a workshop and can be completed',a
  assert.equal(view.container.querySelectorAll('.react-flow__node').length,3);fireEvent.click(view.getByRole('button',{name:'▶ Протестировать'}));await settle();assert.ok(view.container.textContent?.includes('Добро пожаловать!'));assert.equal(view.container.querySelector('canvas'),null);fireEvent.click(view.getByRole('button',{name:'Продолжить →'}));await settle();assert.ok(view.container.textContent?.includes('Знакомство завершено.'));
 });
 test('editor UI: labels create a connection without hitting a small handle; duplicates are rejected',async()=>{
- const {welcomeLevel}=await import('../src/level');const level=welcomeLevel();level.edges=[];localStorage.setItem('factory-level-v3',JSON.stringify(level));
+ const {welcomeLevel}=await import('../src/level');const level=welcomeLevel();level.edges=[];localStorage.setItem('factory-level-v4',JSON.stringify(level));
  const view=render(createElement(App));await settle();fireEvent.click(view.getByRole('button',{name:'Выход Далее: Начало уровня'}));fireEvent.click(view.getByRole('button',{name:'Вход Выполнение: Вступление'}));await settle();assert.equal(view.container.querySelectorAll('.react-flow__edge').length,1);
  fireEvent.click(view.getByRole('button',{name:'Выход Далее: Начало уровня'}));fireEvent.click(view.getByRole('button',{name:'Вход Выполнение: Вступление'}));await settle();assert.equal(view.container.querySelectorAll('.react-flow__edge').length,1);assert.ok(view.container.textContent?.includes('Эта связь уже существует'));
- fireEvent.click(view.getByRole('button',{name:'Сохранить'}));const stored=JSON.parse(localStorage.getItem('factory-level-v3')!);assert.equal(stored.edges.length,1);
+ fireEvent.click(view.getByRole('button',{name:'Сохранить'}));const stored=JSON.parse(localStorage.getItem('factory-level-v4')!);assert.equal(stored.edges.length,1);
 });
 test('editor UI: connection builder creates a data edge via dropdowns',async()=>{
- const {exampleLevel}=await import('../src/level');const level=exampleLevel();level.edges=level.edges.filter(edge=>!(edge.target==='lathe'&&edge.targetHandle==='blank'));localStorage.setItem('factory-level-v3',JSON.stringify(level));
+ const {exampleLevel}=await import('../src/level');const level=exampleLevel();level.edges=level.edges.filter(edge=>!(edge.target==='lathe'&&edge.targetHandle==='blank'));localStorage.setItem('factory-level-v4',JSON.stringify(level));
  const view=render(createElement(App));await settle();fireEvent.click(view.getByRole('button',{name:'+ Добавить связь'}));
  fireEvent.change(view.getByLabelText('Выход новой связи'),{target:{value:JSON.stringify(['blank','blank'])}});fireEvent.click(view.getByRole('button',{name:'Создать связь'}));await settle();
- assert.equal(view.container.querySelectorAll('.react-flow__edge').length,10);fireEvent.click(view.getByRole('button',{name:'Сохранить'}));assert.equal(JSON.parse(localStorage.getItem('factory-level-v3')!).edges.filter((edge:{source:string;target:string})=>edge.source==='blank'&&edge.target==='lathe').length,1);
+ assert.equal(view.container.querySelectorAll('.react-flow__edge').length,10);fireEvent.click(view.getByRole('button',{name:'Сохранить'}));assert.equal(JSON.parse(localStorage.getItem('factory-level-v4')!).edges.filter((edge:{source:string;target:string})=>edge.source==='blank'&&edge.target==='lathe').length,1);
 });
 test('editor UI: border resizing updates the port endpoint, persists and has no size property fields',async()=>{
  let view=render(createElement(App));await settle();fireEvent.click(view.getByTestId('rf__node-intro'));await settle();
@@ -164,7 +164,7 @@ test('editor UI: border resizing updates the port endpoint, persists and has no 
  fireEvent.mouseMove(dom.window as unknown as Window,{clientX:700,clientY:290,buttons:1,view:dom.window});await settle();
  fireEvent.mouseUp(dom.window as unknown as Window,{clientX:700,clientY:290,button:0,view:dom.window});await settle();
  const width=view.getByTestId('rf__node-intro').style.width;assert.notEqual(width,'230px');assert.notEqual(outgoing.getAttribute('d'),previousPath);
- fireEvent.click(view.getByRole('button',{name:'Сохранить'}));const stored=JSON.parse(localStorage.getItem('factory-level-v3')!);assert.ok(stored.nodes.find((n:{id:string})=>n.id==='intro').size.width>230);
+ fireEvent.click(view.getByRole('button',{name:'Сохранить'}));const stored=JSON.parse(localStorage.getItem('factory-level-v4')!);assert.ok(stored.nodes.find((n:{id:string})=>n.id==='intro').size.width>230);
  cleanup();view=render(createElement(App));await settle();assert.equal(view.getByTestId('rf__node-intro').style.width,width);
 });
 
@@ -178,8 +178,8 @@ test('editor UI: shape fields, tool categories and operation add/reorder/delete 
  fireEvent.change(view.getByLabelText('Форма'),{target:{value:'block'}});assert.equal(view.queryByLabelText('Диаметр, мм'),null);assert.ok(view.getByLabelText('Ширина, мм'));assert.ok(view.getByLabelText('Высота, мм'));
  fireEvent.click(view.getByTestId('rf__node-tool'));fireEvent.change(view.getByLabelText('Категория'),{target:{value:'milling'}});assert.equal((view.getByLabelText('Инструмент') as HTMLSelectElement).value,'face');assert.equal(view.queryByRole('option',{name:/Проходной/}),null);
  fireEvent.click(view.getByTestId('rf__node-process'));fireEvent.click(view.getByRole('button',{name:'+ Фрезерование плоскости'}));fireEvent.click(view.getByRole('button',{name:'Переместить операцию 2 вверх'}));fireEvent.click(view.getByRole('button',{name:'Сохранить'}));
- let saved=JSON.parse(localStorage.getItem('factory-level-v3')!);assert.deepEqual(saved.nodes.find((n:{id:string})=>n.id==='process').params.operations.map((o:{kind:string})=>o.kind),['milling','turning']);
- fireEvent.click(view.getByRole('button',{name:'Удалить операцию 2'}));fireEvent.click(view.getByRole('button',{name:'Сохранить'}));saved=JSON.parse(localStorage.getItem('factory-level-v3')!);assert.equal(saved.nodes.find((n:{id:string})=>n.id==='process').params.operations.length,1);
+ let saved=JSON.parse(localStorage.getItem('factory-level-v4')!);assert.deepEqual(saved.nodes.find((n:{id:string})=>n.id==='process').params.operations.map((o:{kind:string})=>o.kind),['milling','turning']);
+ fireEvent.click(view.getByRole('button',{name:'Удалить операцию 2'}));fireEvent.click(view.getByRole('button',{name:'Сохранить'}));saved=JSON.parse(localStorage.getItem('factory-level-v4')!);assert.equal(saved.nodes.find((n:{id:string})=>n.id==='process').params.operations.length,1);
  fireEvent.click(view.getByTestId('rf__node-task'));assert.equal(view.getByTestId('rf__node-task').querySelectorAll('.react-flow__handle.target').length,1);
 });
 
@@ -197,7 +197,7 @@ test('editor UI: raster upload/replace/delete and decoder failures preserve the 
  let view=render(createElement(App));await settle();fireEvent.click(view.getByRole('button',{name:'Приветствие'}));await settle();fireEvent.click(view.getByTestId('rf__node-intro'));
  fireEvent.change(view.getByLabelText('Изображение (PNG, JPEG, WebP)'),{target:{files:[file]}});await settle();assert.equal(view.container.querySelector('img')!.getAttribute('src'),png);
  fail=true;fireEvent.change(view.getByLabelText('Изображение (PNG, JPEG, WebP)'),{target:{files:[file]}});await settle();assert.equal(view.container.querySelector('img')!.getAttribute('src'),png);assert.ok(view.container.textContent?.includes('Изображение не изменено'));
- fail=false;fireEvent.click(view.getByRole('button',{name:'Сохранить'}));const raw=localStorage.getItem('factory-level-v3')!;assert.equal(JSON.parse(raw).nodes.find((n:{type:string})=>n.type==='intro').params.image,png);
+ fail=false;fireEvent.click(view.getByRole('button',{name:'Сохранить'}));const raw=localStorage.getItem('factory-level-v4')!;assert.equal(JSON.parse(raw).nodes.find((n:{type:string})=>n.type==='intro').params.image,png);
  cleanup();view=render(createElement(App));await settle();fireEvent.click(view.getByTestId('rf__node-intro'));assert.equal(view.container.querySelector('img')!.getAttribute('src'),png);
  fireEvent.click(view.getByRole('button',{name:'▶ Протестировать'}));await settle();assert.equal(view.container.querySelector('img')!.getAttribute('src'),png);fireEvent.click(view.getByRole('button',{name:'Продолжить →'}));assert.ok(view.container.textContent?.includes('Знакомство завершено.'));
  fireEvent.click(view.getByRole('button',{name:'← Вернуться в редактор'}));await settle();fireEvent.click(view.getByTestId('rf__node-intro'));fireEvent.click(view.getByRole('button',{name:'Удалить изображение'}));assert.equal(view.container.querySelector('img'),null);
@@ -207,13 +207,45 @@ test('editor UI: map settings use the canonical grid, protect occupied points an
  const view=render(createElement(App));await settle();fireEvent.click(view.getByTestId('rf__node-map'));assert.equal((view.getByLabelText('Количество точек') as HTMLInputElement).value,'5');
  fireEvent.change(view.getByLabelText('Количество точек'),{target:{value:2}});assert.ok(view.container.textContent?.includes('Нельзя удалить занятые точки'));assert.equal((view.getByLabelText('Количество точек') as HTMLInputElement).value,'5');
  fireEvent.change(view.getByLabelText('Ширина карты, клеток'),{target:{value:2}});assert.ok(view.container.textContent?.includes('затрагивают занятые точки'));assert.equal((view.getByLabelText('Ширина карты, клеток') as HTMLInputElement).value,'5');
- fireEvent.change(view.getByLabelText('Количество точек'),{target:{value:4}});fireEvent.click(view.getByRole('button',{name:'Сохранить'}));const saved=JSON.parse(localStorage.getItem('factory-level-v3')!);assert.equal(saved.grid.points.length,4);assert.equal('width' in saved.nodes.find((n:{type:string})=>n.type==='map').params,false);assert.deepEqual(saved.placements.map((p:{pointId:string})=>p.pointId),['point-blank','point-lathe','point-warehouse']);
+ fireEvent.change(view.getByLabelText('Количество точек'),{target:{value:4}});fireEvent.click(view.getByRole('button',{name:'Сохранить'}));const saved=JSON.parse(localStorage.getItem('factory-level-v4')!);assert.equal(saved.grid.points.length,4);assert.equal('width' in saved.nodes.find((n:{type:string})=>n.type==='map').params,false);assert.deepEqual(saved.placements.map((p:{pointId:string})=>p.pointId),['point-blank','point-lathe','point-warehouse']);
  fireEvent.click(view.getByRole('button',{name:'Удалить ноду'}));assert.ok(view.getByTestId('rf__node-map'));assert.ok(view.container.textContent?.includes('Нельзя удалить карту'));
 });
 test('editor UI: new hint and event properties persist; intermediate warehouse exposes a blank output',async()=>{
- const view=render(createElement(App));await settle();fireEvent.click(view.getByRole('button',{name:'Два станка'}));await settle();fireEvent.click(view.getByTestId('rf__node-installed-hint'));fireEvent.change(view.getByLabelText('Способ показа'),{target:{value:'modal'}});fireEvent.change(view.getByLabelText('Частота'),{target:{value:'each'}});fireEvent.click(view.getByRole('button',{name:'Сохранить'}));const saved=JSON.parse(localStorage.getItem('factory-level-v3')!);assert.equal(saved.nodes.find((n:{id:string})=>n.id==='installed-hint').params.display,'modal');assert.equal(saved.nodes.find((n:{id:string})=>n.id==='installed-hint').params.frequency,'each');
+ const view=render(createElement(App));await settle();fireEvent.click(view.getByRole('button',{name:'Два станка'}));await settle();fireEvent.click(view.getByTestId('rf__node-installed-hint'));fireEvent.change(view.getByLabelText('Способ показа'),{target:{value:'modal'}});fireEvent.change(view.getByLabelText('Частота'),{target:{value:'each'}});fireEvent.click(view.getByRole('button',{name:'Сохранить'}));const saved=JSON.parse(localStorage.getItem('factory-level-v4')!);assert.equal(saved.nodes.find((n:{id:string})=>n.id==='installed-hint').params.display,'modal');assert.equal(saved.nodes.find((n:{id:string})=>n.id==='installed-hint').params.frequency,'each');
  assert.ok(view.getByTestId('rf__node-warehouse').querySelector('.source[data-handleid="blank"]'));assert.equal(view.getByTestId('rf__node-final-store').querySelector('.source[data-handleid="blank"]'),null);assert.ok(view.getByTestId('rf__node-wait').querySelector('.source[data-handleid="detail"]'));
 });
 test('editor UI: sequential modal hints confirm once without showing an intro window at the same time',async()=>{
- const {welcomeLevel,makeNode,connect}=await import('../src/level');const l=welcomeLevel();const h=makeNode('hint','help');Object.assign(h.params,{display:'modal',title:'Рабочая подсказка'});l.nodes.push(h);l.edges=l.edges.filter(e=>e.source!=='intro');connect(l,'intro','out','help','in');connect(l,'help','out','finish','in');localStorage.setItem('factory-level-v3',JSON.stringify(l));const view=render(createElement(App));await settle();fireEvent.click(view.getByRole('button',{name:'▶ Протестировать'}));fireEvent.click(view.getByRole('button',{name:'Продолжить →'}));await settle();assert.equal(view.getAllByRole('dialog').length,1);assert.ok(view.getByRole('dialog',{name:'Подсказка'}));fireEvent.click(view.getByRole('button',{name:'Продолжить'}));assert.ok(view.container.textContent?.includes('Знакомство завершено.'));assert.equal(view.queryByRole('dialog'),null);
+ const {welcomeLevel,makeNode,connect}=await import('../src/level');const l=welcomeLevel();const h=makeNode('hint','help');Object.assign(h.params,{display:'modal',title:'Рабочая подсказка'});l.nodes.push(h);l.edges=l.edges.filter(e=>e.source!=='intro');connect(l,'intro','out','help','in');connect(l,'help','out','finish','in');localStorage.setItem('factory-level-v4',JSON.stringify(l));const view=render(createElement(App));await settle();fireEvent.click(view.getByRole('button',{name:'▶ Протестировать'}));fireEvent.click(view.getByRole('button',{name:'Продолжить →'}));await settle();assert.equal(view.getAllByRole('dialog').length,1);assert.ok(view.getByRole('dialog',{name:'Подсказка'}));fireEvent.click(view.getByRole('button',{name:'Продолжить'}));assert.ok(view.container.textContent?.includes('Знакомство завершено.'));assert.equal(view.queryByRole('dialog'),null);
+});
+
+test('planning UI: example permits correcting incompatible choices, editing/reordering tools and pure preview without manufacturing',async()=>{
+ const view=render(createElement(App));await settle();fireEvent.click(view.getByRole('button',{name:'Ось: план игрока'}));await settle();fireEvent.click(view.getByRole('button',{name:'▶ Протестировать'}));await settle();
+ assert.ok(view.container.textContent?.includes('План производства'));
+ fireEvent.click(view.getByRole('button',{name:/Тонкая стальная заготовка/}));fireEvent.click(view.getByRole('button',{name:/Фрезерный станок/}));fireEvent.change(view.getByLabelText('Точка станка'),{target:{value:'machine-point'}});
+ fireEvent.click(view.getByRole('button',{name:'+ Продольное точение'}));fireEvent.change(view.getByLabelText('Инструмент операции 1'),{target:{value:'passing-choice'}});fireEvent.change(view.getByLabelText('Длина операции 1'),{target:{value:'20'}});fireEvent.click(view.getByRole('button',{name:'Проверить план'}));
+ assert.ok(view.container.textContent?.includes('для этой операции нужен токарный станок'));
+ fireEvent.click(view.getByRole('button',{name:/Токарный станок/}));fireEvent.click(view.getByRole('button',{name:'Проверить план'}));assert.ok(view.container.textContent?.includes('Конечный диаметр должен быть меньше'));
+ fireEvent.click(view.getByRole('button',{name:/Стальная заготовка Ø20/}));fireEvent.click(view.getByRole('button',{name:'+ Продольное точение'}));fireEvent.change(view.getByLabelText('Инструмент операции 2'),{target:{value:'passing-choice'}});fireEvent.change(view.getByLabelText('Диаметр операции 2'),{target:{value:'8'}});fireEvent.change(view.getByLabelText('Длина операции 2'),{target:{value:'20'}});
+ fireEvent.click(view.getByRole('button',{name:'Переместить операцию 2 вверх'}));assert.equal((view.getByLabelText('Диаметр операции 1') as HTMLInputElement).value,'8');fireEvent.click(view.getByRole('button',{name:'Переместить операцию 1 вниз'}));assert.equal((view.getByLabelText('Диаметр операции 1') as HTMLInputElement).value,'12');
+ fireEvent.click(view.getByRole('button',{name:'Пробная обработка'}));assert.ok(view.container.textContent?.includes('План технически допустим'));assert.ok(view.getByRole('img',{name:'Пробный результат'}));assert.equal(view.container.querySelector('canvas'),null);assert.equal(view.queryByRole('button',{name:'Обработать 1 / 2'}),null);assert.equal(view.queryByLabelText('Длительность операции 1'),null);
+ fireEvent.click(view.getByRole('button',{name:'Удалить операцию 2'}));assert.equal(view.queryByLabelText('Диаметр операции 2'),null);fireEvent.click(view.getByRole('button',{name:'Начать заново'}));assert.equal(view.queryByLabelText('Диаметр операции 1'),null);assert.equal(view.queryByRole('img',{name:'Пробный результат'}),null);
+ fireEvent.click(view.getByRole('button',{name:'← Вернуться в редактор'}));await settle();fireEvent.click(view.getByRole('button',{name:'Сохранить'}));const stored=JSON.parse(localStorage.getItem('factory-level-v4')!);assert.equal(stored.productionMode,'player');assert.equal(stored.groups.length,3);assert.equal(stored.nodes.some((n:{type:string})=>n.type==='process'),false);
+});
+
+test('editor UI: Shift grouping, rename/color, group drag, membership and frame Delete preserve nodes and crossing edges',async()=>{
+ const view=render(createElement(App));await settle();
+ fireEvent.click(view.getByTestId('rf__node-start'));await settle();fireEvent.keyDown(dom.window as unknown as Window,{key:'Shift',code:'ShiftLeft'});fireEvent.click(view.getByTestId('rf__node-intro'),{shiftKey:true});fireEvent.keyUp(dom.window as unknown as Window,{key:'Shift',code:'ShiftLeft'});await settle();
+ const groupButton=view.getByRole('button',{name:'Группировать выделенные'});assert.equal((groupButton as HTMLButtonElement).disabled,false);fireEvent.click(groupButton);await settle();const frame=view.container.querySelector<HTMLElement>('.react-flow__node-frame')!;assert.ok(frame);fireEvent.click(frame);await settle();
+ fireEvent.change(view.getByLabelText('Название группы'),{target:{value:'Моя группа'}});fireEvent.change(view.getByLabelText('Цвет группы'),{target:{value:'#123456'}});await settle();
+ const start=view.getByTestId('rf__node-start'),edge=view.getByTestId('rf__edge-start-out-intro-in').querySelector('.react-flow__edge-path')!,boundary=view.getByTestId('rf__edge-intro-out-task-in').querySelector('.react-flow__edge-path')!;
+ const originalPosition=nodePosition(start),oldPath=edge.getAttribute('d'),oldBoundary=boundary.getAttribute('d');const heading=frame.querySelector('.group-heading')!;
+ fireEvent.mouseDown(heading,{clientX:20,clientY:20,button:0,buttons:1,view:dom.window});fireEvent.mouseMove(dom.window as unknown as Window,{clientX:30,clientY:25,buttons:1,view:dom.window});fireEvent.mouseMove(dom.window as unknown as Window,{clientX:120,clientY:90,buttons:1,view:dom.window});await settle();fireEvent.mouseUp(dom.window as unknown as Window,{clientX:120,clientY:90,button:0,view:dom.window});await settle();
+ assert.notDeepEqual(nodePosition(start),originalPosition);assert.notEqual(edge.getAttribute('d'),oldPath);assert.notEqual(boundary.getAttribute('d'),oldBoundary);
+ fireEvent.click(frame);await settle();const topLeft=frame.querySelector('.react-flow__resize-control.handle.top.left')!;assert.ok(topLeft);const beforeResize=nodePosition(start),beforeResizePath=boundary.getAttribute('d'),widthBefore=frame.style.width;
+ fireEvent.mouseDown(topLeft,{clientX:300,clientY:200,button:0,buttons:1,view:dom.window});fireEvent.mouseMove(dom.window as unknown as Window,{clientX:250,clientY:160,buttons:1,view:dom.window});await settle();fireEvent.mouseUp(dom.window as unknown as Window,{clientX:250,clientY:160,button:0,view:dom.window});await settle();assert.notEqual(frame.style.width,widthBefore);assert.deepEqual(nodePosition(start),beforeResize);assert.equal(boundary.getAttribute('d'),beforeResizePath);
+
+ fireEvent.click(view.getByTestId('rf__node-task'));await settle();fireEvent.change(view.getByLabelText('Группа ноды'),{target:{value:frame.getAttribute('data-id')}});await settle();fireEvent.change(view.getByLabelText('Группа ноды'),{target:{value:''}});await settle();
+ fireEvent.click(frame);await settle();fireEvent.click(view.getByRole('button',{name:'Сохранить'}));const grouped=JSON.parse(localStorage.getItem('factory-level-v4')!);assert.equal(grouped.groups[0].name,'Моя группа');assert.equal(grouped.groups[0].color,'#123456');const before=nodePosition(start);
+ fireEvent.keyDown(document,{key:'Delete',code:'Delete'});fireEvent.keyUp(document,{key:'Delete',code:'Delete'});await settle();assert.equal(!!view.container.querySelector('.react-flow__node-frame'),false);assert.equal(view.container.querySelectorAll('.react-flow__node').length,12);assert.equal(view.container.querySelectorAll('.react-flow__edge').length,10);assert.deepEqual(nodePosition(start),before);
+ fireEvent.click(view.getByRole('button',{name:'Сохранить'}));const stored=JSON.parse(localStorage.getItem('factory-level-v4')!);assert.equal(stored.groups.length,0);assert.equal(stored.nodes.filter((n:{groupId?:string})=>n.groupId).length,0);assert.deepEqual(stored.edges,grouped.edges);
 });

@@ -8,7 +8,13 @@ import {loadLevel,saveDraft,parseLevelWithImages,checkLevelImages,serializeLevel
 const Workshop=lazy(()=>import('./Workshop').then(module=>({default:module.Workshop})));
 function SceneLoading(){return <div className="scene-loading">Загрузка цеха…</div>;}
 
-import {addEditorNode,type FlowNode} from './editorFlow';
+import {addEditorNode,type EditorNode} from './editorFlow';
+import {PlanningCore} from './planning';
+import {PlanningPlayer} from './PlanningPlayer';
+import {PartPreview} from './PartPreview';
+import {toyAxleLevel} from './playerLevel';
+import {ungroup,setGroupMember} from './groups';
+import {catalogIds} from './level';
 import {GraphEditor} from './GraphEditor';
 import {NodeProperties} from './NodeProperties';
 import {dimensionText} from './manufacturing';
@@ -31,12 +37,12 @@ export function App(){
   const [checked,setChecked]=useState(false);
   const [mapMode,setMapMode]=useState<'objects'|'points'|'move'>('objects');
   const [movingPoint,setMovingPoint]=useState<string|null>(null);
-  const [run,setRun]=useState<{core:FactoryCore;level:Level;test:boolean}|null>(null);
+  const [run,setRun]=useState<{core:FactoryCore|PlanningCore;level:Level;test:boolean}|null>(null);
   const importInput=useRef<HTMLInputElement>(null);
-  const flow=useRef<ReactFlowInstance<FlowNode,Edge>|null>(null);
+  const flow=useRef<ReactFlowInstance<EditorNode,Edge>|null>(null);
   const errors=useMemo(()=>validateLevel(level),[level]);
   const node=level.nodes.find(n=>n.id===selected);
-  const setFlowInstance=useCallback((instance:ReactFlowInstance<FlowNode,Edge>|null)=>{flow.current=instance;},[]);
+  const setFlowInstance=useCallback((instance:ReactFlowInstance<EditorNode,Edge>|null)=>{flow.current=instance;},[]);
   function addNode(type:NodeKind,position?:{x:number;y:number}){
     const bounds=document.querySelector('.flow-host')?.getBoundingClientRect();
     const center=bounds&&tab==='graph'&&flow.current?flow.current.screenToFlowPosition({x:bounds.left+bounds.width/2,y:bounds.top+bounds.height/2}):{x:315,y:240};
@@ -45,7 +51,7 @@ export function App(){
     setLevel(current=>addEditorNode(current,type,id,desired));
     setSelected(id);setFocusNodeId(id);setTab('graph');setNotice(`Добавлена нода «${registry[type].title}». Настройте параметры справа и соедините порты.`);
   }
-  function start(test:boolean){setChecked(true);if(errors.length){setNotice('Исправьте ошибки перед запуском.');return;}try{const snapshot=structuredClone(level);setRun({core:new FactoryCore(compileLevel(snapshot)),level:snapshot,test});setNotice('');}catch(error){setNotice(message(error));}}
+  function start(test:boolean){setChecked(true);if(errors.length){setNotice('Исправьте ошибки перед запуском.');return;}try{const snapshot=structuredClone(level);setRun({core:snapshot.productionMode==='player'?new PlanningCore(snapshot):new FactoryCore(compileLevel(snapshot)),level:snapshot,test});setNotice('');}catch(error){setNotice(message(error));}}
   function focusIssue(issue:Issue){if(!issue.nodeId)return;setSelected(issue.nodeId);setTab('graph');const n=level.nodes.find(n=>n.id===issue.nodeId);if(n)flow.current?.setCenter(n.position.x+115,n.position.y+60,{zoom:1,duration:300});}
   function mapChange(result:MapChange){if(result.error)setNotice(result.error);else {setLevel(result.level);setNotice('');}}
   function replace(next:Level){setMovingPoint(null);setMapMode('objects');setLevel(next);setSelected(null);setFocusNodeId(null);setGraphRevision(value=>value+1);setTab('graph');setChecked(false);setNotice('');}
@@ -55,11 +61,11 @@ export function App(){
   }
   function updateParams(patch:Params){if(!node)return;const id=node.id;setLevel(current=>({...current,nodes:current.nodes.map(n=>n.id===id?{...n,params:{...n.params,...patch}}:n)}));}
   if(!imagesReady)return <main><p>{notice||'Проверка изображений сохранения…'}</p><button onClick={()=>{setLevel(exampleLevel());setImagesReady(true);}}>Открыть пример (сохранение остаётся в браузере)</button></main>;
-  if(run)return <Player core={run.core} level={run.level} test={run.test} onExit={()=>{run.core.dispose();setRun(null);}} />;
+  if(run){const onExit=()=>{run.core.dispose();setRun(null);};return run.core instanceof PlanningCore?<PlanningPlayer core={run.core} level={run.level} onExit={onExit} renderRuntime={(core,scene,planning,onChange)=><Player core={core} level={scene} test={run.test} onExit={onExit} planning={planning} onPlanChange={onChange}/>}/>:<Player core={run.core} level={run.level} test={run.test} onExit={onExit}/>;}
   return <main className="admin-app">
     <header className="app-header"><div className="brand"><span className="brand-icon">▧</span><div><h1>Мастерская уровней</h1><p>Учебный завод · локальный прототип</p></div></div><div className="mode-tabs"><button className="active">Администратор</button><button onClick={()=>start(false)}>Игрок ↗</button></div></header>
-    <div className="toolbar"><input className="level-name" aria-label="Название уровня" value={level.name} onChange={e=>setLevel({...level,name:e.target.value})} /><div className="toolbar-actions">
-      <button onClick={()=>replace(emptyLevel())}>Новый уровень</button><button onClick={()=>replace(exampleLevel())}>Пример</button><button onClick={()=>replace(welcomeLevel())}>Приветствие</button><button onClick={()=>replace(twoOperationsLevel())}>2 операции</button><button onClick={()=>replace(intermediateLevel())}>Два станка</button><button onClick={()=>replace(millingLevel())}>Фрезерный пример</button><button onClick={()=>replace(checkLevel())}>Проверка выбора</button><div className="add-node-control"><select aria-label="Тип новой ноды" value={addType} onChange={e=>setAddType(e.target.value as NodeKind)}>{NODE_TYPES.map(type=><option key={type} value={type}>{registry[type].title}</option>)}</select><button onClick={()=>addNode(addType)}>+ Добавить ноду</button></div>
+    <div className="toolbar"><input className="level-name" aria-label="Название уровня" value={level.name} onChange={e=>setLevel({...level,name:e.target.value})} /><label>Режим производства<select aria-label="Режим производства" value={level.productionMode} onChange={e=>setLevel({...level,productionMode:e.target.value as Level['productionMode']})}><option value="ready">Готовый план</option><option value="player">План игрока</option></select></label><div className="toolbar-actions">
+      <button onClick={()=>replace(emptyLevel())}>Новый уровень</button><button onClick={()=>replace(exampleLevel())}>Пример</button><button onClick={()=>replace(toyAxleLevel())}>Ось: план игрока</button><button onClick={()=>replace(welcomeLevel())}>Приветствие</button><button onClick={()=>replace(twoOperationsLevel())}>2 операции</button><button onClick={()=>replace(intermediateLevel())}>Два станка</button><button onClick={()=>replace(millingLevel())}>Фрезерный пример</button><button onClick={()=>replace(checkLevel())}>Проверка выбора</button><div className="add-node-control"><select aria-label="Тип новой ноды" value={addType} onChange={e=>setAddType(e.target.value as NodeKind)}>{NODE_TYPES.map(type=><option key={type} value={type}>{registry[type].title}</option>)}</select><button onClick={()=>addNode(addType)}>+ Добавить ноду</button></div>
       <button onClick={()=>{try{saveDraft(localStorage,level);setNotice(errors.length?'Черновик сохранён. Можно продолжить создание после перезагрузки.':'Уровень сохранён в этом браузере.');}catch(e){setChecked(true);setNotice(`Не удалось сохранить: ${message(e)}`);}}}>Сохранить</button>
       <button onClick={exportJSON}>Экспорт JSON</button><button onClick={()=>importInput.current?.click()}>Импорт JSON</button>
       <button onClick={()=>{setChecked(true);setNotice(errors.length?`Найдено ошибок: ${errors.length}`:'Уровень корректен. Можно запускать.');}}>Проверить</button><button className="primary" onClick={()=>start(true)}>▶ Протестировать</button>
@@ -68,7 +74,7 @@ export function App(){
     <div className="editor-layout">
       <aside className="library"><h2>Библиотека нод</h2><p className="muted">Нажмите «+» или перетащите тип в граф</p>
         {NODE_TYPES.map(type=><button className="library-item" key={type} draggable onDragStart={event=>{event.dataTransfer.setData('application/x-factory-node',type);event.dataTransfer.effectAllowed='copy';}} onClick={()=>addNode(type)}><span className={`type-icon ${registry[type].inputs.some(p=>p.type==='execution')||type==='start'?'gold':''}`}>{type==='start'?'▶':'◇'}</span><span>{registry[type].title}</span><span className="plus">+</span></button>)}
-        {tab==='map'&&<section className="map-library"><h2>Объекты карты</h2><p className="muted">Выберите объект, затем свободную клетку</p>{level.nodes.filter(n=>['blank','lathe','warehouse'].includes(n.type)).map(n=>{
+        {tab==='map'&&<section className="map-library"><h2>Объекты карты</h2><p className="muted">Выберите объект, затем свободную клетку</p>{level.nodes.filter(n=>['blank','lathe','warehouse','table'].includes(n.type)&&!(level.productionMode==='player'&&catalogIds(level).has(n.id))).map(n=>{
           const placement=locatedPlacements(level).find(p=>p.nodeId===n.id);
           return <button key={n.id} className={`map-object ${selected===n.id?'active':''}`} onClick={()=>setSelected(n.id)}><strong>{String(n.params.name)}</strong><small>{placement?`Клетка ${placement.x+1}, ${placement.y+1}`:'Не размещён'}</small></button>;
         })}</section>}
@@ -79,41 +85,42 @@ export function App(){
 :<div className="map-host"><div><button onClick={()=>{setMapMode('objects');setMovingPoint(null);}}>Размещать объекты</button><button onClick={()=>{setMapMode('points');setMovingPoint(null);}}>Отмечать точки</button><button onClick={()=>{setMapMode('move');setMovingPoint(null);}}>Перенести точку</button><button onClick={()=>{const map=level.nodes.find(n=>n.type==='map');if(map)setSelected(map.id);else setNotice('Добавьте ноду «Карта».');}}>Настройки карты</button><span role="status">{mapMode==='objects'?'Выберите объект и разрешённую точку':mapMode==='points'?'Клик добавляет или снимает свободную точку':movingPoint?'Выберите новую свободную клетку':'Выберите свободную точку для переноса'}</span></div><Suspense fallback={<SceneLoading/>}><Workshop level={level} selected={selected} onCell={(x,y)=>{
         if(mapMode==='points'){if(!level.nodes.some(n=>n.type==='map')){setNotice('Добавьте ноду «Карта».');return;}mapChange(togglePoint(level,x,y));return;}
         if(mapMode==='move'){if(movingPoint){const result=movePoint(level,movingPoint,x,y);mapChange(result);if(!result.error)setMovingPoint(null);}else {const point=level.grid.points.find(p=>p.x===x&&p.y===y);if(!point){setNotice('Выберите существующую свободную точку.');return;}if(level.placements.some(p=>p.pointId===point.id)){setNotice('Точка занята. Сначала переместите или снимите объект.');return;}setMovingPoint(point.id);}return;}
-        if(!node||!['blank','lathe','warehouse'].includes(node.type)){setNotice('Выберите заготовку, станок или склад слева.');return;}
+        if(!node||!['blank','lathe','warehouse','table'].includes(node.type)){setNotice('Выберите заготовку, станок или склад слева.');return;}
         const next=placeObject(level,node.id,x,y);if(next){setLevel(next);setNotice('');}else setNotice('Выберите разрешённую свободную точку карты.');
       }}/></Suspense><div className="map-caption">Клетки нумеруются с 1. Позиции объектов независимы от позиций нод.</div></div>}
       {checked&&<div className={`validation-panel ${errors.length?'invalid':'valid'}`}><strong>{errors.length?`Ошибки уровня (${errors.length})`:'✓ Уровень корректен'}</strong>{errors.map((issue,i)=><button key={i} onClick={()=>focusIssue(issue)}><b>{String(level.nodes.find(n=>n.id===issue.nodeId)?.params.name??(issue.nodeId?registry[level.nodes.find(n=>n.id===issue.nodeId)?.type??'start'].title:'Уровень'))}</b> · {issue.message}</button>)}</div>}
       </section>
       <aside className="properties"><h2>Свойства</h2>{node?<><span className="eyebrow">{registry[node.type].title}</span><code className="node-id">ID: {node.id}</code>{node.type==='map'&&<MapSettings level={level} onChange={mapChange}/>}<NodeProperties key={`${level.id}:${graphRevision}:${node.id}`} node={node} level={level} onPatch={updateParams} onNotice={setNotice}/>
-        {registry[node.type].parameters.length===0&&node.type!=='process'&&node.type!=='map'&&<p className="muted">У этой ноды нет параметров.</p>}
-        {['blank','lathe','warehouse'].includes(node.type)&&<div className="placement-info"><strong>Размещение на карте</strong><p>{level.placements.find(p=>p.nodeId===node.id)?(()=>{const p=locatedPlacements(level).find(p=>p.nodeId===node.id)!;return `Клетка ${p.x+1}, ${p.y+1}`;})():'Объект не размещён'}</p><button onClick={()=>setTab('map')}>Перейти к карте</button><button onClick={()=>setLevel({...level,placements:level.placements.filter(p=>p.nodeId!==node.id)})}>Убрать с карты</button></div>}
+        {registry[node.type].parameters.length===0&&node.type!=='process'&&node.type!=='map'&&node.type!=='catalog'&&<p className="muted">У этой ноды нет параметров.</p>}
+        <label>Группа<select aria-label="Группа ноды" value={node.groupId??''} onChange={e=>setLevel(current=>setGroupMember(current,node.id,e.target.value||null))}><option value="">Без группы</option>{level.groups.map(g=><option key={g.id} value={g.id}>{g.name}</option>)}</select></label>{['blank','lathe','warehouse','table'].includes(node.type)&&!(level.productionMode==='player'&&catalogIds(level).has(node.id))&&<div className="placement-info"><strong>Размещение на карте</strong><p>{level.placements.find(p=>p.nodeId===node.id)?(()=>{const p=locatedPlacements(level).find(p=>p.nodeId===node.id)!;return `Клетка ${p.x+1}, ${p.y+1}`;})():'Объект не размещён'}</p><button onClick={()=>setTab('map')}>Перейти к карте</button><button onClick={()=>setLevel({...level,placements:level.placements.filter(p=>p.nodeId!==node.id)})}>Убрать с карты</button></div>}
         <button className="danger" onClick={()=>{if(node.type==='map'&&level.placements.length){setNotice('Нельзя удалить карту с размещёнными объектами. Сначала снимите объекты.');return;}setLevel(deleteNodes(level,[node.id]));setSelected(null);}}>Удалить ноду</button><p className="muted">Связи и размещение этой ноды будут удалены вместе с ней.</p>
-      </>:<div className="empty-properties"><span>◇</span><p>Выберите ноду, чтобы изменить её параметры.</p></div>}
+      </>:level.groups.some(g=>g.id===selected)?<>{level.groups.filter(g=>g.id===selected).map(group=><section key={group.id}><label>Название группы<input aria-label="Название группы" value={group.name} onChange={e=>setLevel({...level,groups:level.groups.map(g=>g.id===group.id?{...g,name:e.target.value}:g)})}/></label><label>Цвет группы<input aria-label="Цвет группы" type="color" value={group.color} onChange={e=>setLevel({...level,groups:level.groups.map(g=>g.id===group.id?{...g,color:e.target.value}:g)})}/></label><p>Тяните заголовок, чтобы переместить всю группу. Рамка меняет размеры через угловые маркеры. Принадлежность задаётся в свойствах каждой ноды.</p><button onClick={()=>{setLevel(ungroup(level,group.id));setSelected(null);}}>Разгруппировать</button></section>)}</>:<div className="empty-properties"><span>◇</span><p>Выберите ноду, чтобы изменить её параметры.</p></div>}
 
       </aside>
-    </div><div className="editor-footer">Первая версия: один стол, один станок, один склад · линейные сценарии и проверка конфигурации · без сервера</div>
+    </div><div className="editor-footer">Готовый план или план игрока · группы организуют граф и не меняют сценарий · без сервера</div>
   </main>;
 }
-function Player({core,level,test,onExit}:{core:FactoryCore;level:Level;test:boolean;onExit:()=>void}){
+export function Player({core,level,test,onExit,planning,onPlanChange}:{core:FactoryCore;level:Level;test:boolean;onExit:()=>void;planning?:PlanningCore;onPlanChange?:()=>void}){
   const [,refresh]=useReducer(x=>x+1,0);const update=useCallback(()=>refresh(),[]);
   useEffect(()=>()=>core.dispose(),[core]);
-  const s=core.state;
+  const s=core.state;const assessment=planning?.assessment;
+  const reset=()=>{if(planning){planning.reset();onPlanChange?.();}else{core.reset();refresh();}};
   if(core.isWelcome)return <WelcomePlayer core={core} level={level} test={test} onExit={onExit} update={update}/>;
   const op=core.currentOperation;const machine=core.currentMachine;const warehouse=core.currentWarehouse;
   const active=level.nodes.find(n=>n.id===s.activeNodeId);
   const selectedName=s.selected===core.resources.blank.id?(s.stage==='finished'?core.currentPartName:core.resources.blank.name):s.selected===machine.id?machine.name:s.selected===warehouse.id?warehouse.name:core.resources.warehouses[s.selected??'']?.name??core.resources.machines[s.selected??'']?.name??'Выберите объект';
   function command(c:Command){core.command(c);refresh();}
-  return <main className="player-app"><header className="app-header"><div className="brand"><span className="brand-icon">▧</span><div><h1>{level.name}</h1><p>{test?'Тестирование уровня · отдельный запуск':'Учебный завод · режим игрока'}</p></div></div><div className="player-header-actions"><button onClick={()=>{core.reset();refresh();}}>Начать заново</button><button onClick={onExit}>{test?'← Вернуться в редактор':'← Администратор'}</button></div></header>
+  return <main className="player-app"><header className="app-header"><div className="brand"><span className="brand-icon">▧</span><div><h1>{level.name}</h1><p>{test?'Тестирование уровня · отдельный запуск':'Учебный завод · режим игрока'}</p></div></div><div className="player-header-actions"><button onClick={reset}>Начать заново</button><button onClick={onExit}>{test?'← Вернуться в редактор':'← Администратор'}</button></div></header>
     <div className="player-layout"><section className="player-workshop"><div className="scene-top"><span>ИЗОМЕТРИЧЕСКИЙ ЦЕХ</span><span>Стол → станок → склад</span></div><Suspense fallback={<SceneLoading/>}><Workshop level={level} core={core} onUpdate={update}/></Suspense><div className="scene-bottom">Выбранный объект подсвечивается золотым. Цель перемещения — голубым.</div></section><aside className="player-panel"><span className="eyebrow">ТЕКУЩАЯ ЦЕЛЬ</span><h2>{s.goal||'Подготовка к работе'}</h2><p>{s.instruction||'Познакомьтесь с задачей во вступлении.'}</p>{s.checkMessage&&<p role="status">{s.checkMessage}</p>}<div className="next-action" role="status" aria-live="polite"><span>СЛЕДУЮЩЕЕ ДЕЙСТВИЕ</span><p>{core.hint}</p></div><div className="selection-panel"><h3>{selectedName}</h3>
       {s.selected===core.resources.blank.id&&<p className="dimensions">{core.resources.blank.material} · {dimensionText(s.part??core.resources.blank)}{s.part?.sections.map((section,i)=><span key={i}><br/>Участок {i+1}: Ø{section.diameter} × {section.length} мм</span>)}</p>}
-      {s.selected===machine.id&&<p className="dimensions">{machine.tool.name}<br/>{op.kind==='turning'?`Точение: Ø${op.diameter} × ${op.length} мм`:`Фрезерование: снять ${op.depth} мм`}<br/>Длительность: {op.seconds} с</p>}
-      <button className="primary" disabled={!core.can('install')} onClick={()=>command('install')}>Установить в станок</button>
+      {s.selected===machine.id&&<p className="dimensions">{core.currentTool.name}<br/>{op.kind==='turning'?`Точение: Ø${op.diameter} × ${op.length} мм`:`Фрезерование: снять ${op.depth} мм`}<br/>Длительность: {op.seconds} с</p>}
+      <div className="object-actions"><button disabled={s.stage!=='table'&&s.stage!=='finished'} onClick={()=>{core.click(core.resources.blank.id);refresh();}}>Выбрать {s.stage==='table'?'заготовку':'готовую деталь'}</button><button onClick={()=>{core.click(machine.id);refresh();}}>{s.target==='machine'?'Перенести в станок':'Выбрать станок'}</button><button onClick={()=>{core.click(warehouse.id);refresh();}}>{s.target==='warehouse'?'Перенести на склад':'Выбрать склад'}</button></div><button className="primary" disabled={!core.can('install')} onClick={()=>command('install')}>Установить в станок</button>
       <button className="primary" disabled={!core.can('process')} onClick={()=>command('process')}>Обработать {s.operationIndex+1} / {machine.operations.length}</button>
       <button className="primary" disabled={!core.can('store')} onClick={()=>command('store')}>Отправить на склад</button>
       {s.target&&<button onClick={()=>command('cancel')}>Отменить выбор цели</button>}
       <button className="primary" disabled={!core.can('take')} onClick={()=>command('take')}>Взять заготовку</button>
     </div><HintPanels core={core} update={update}/><div className="processing"><div><span>Обработка</span><b>{Math.floor(s.elapsed/(op.seconds*1000)*100)}%</b></div><div className="progress" role="progressbar" aria-label="Прогресс обработки" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.floor(s.elapsed/(op.seconds*1000)*100)}><i style={{width:`${s.elapsed/(op.seconds*1000)*100}%`}} /></div></div><div className="warehouse-count"><span>{warehouse.name}<small>Готовые детали</small></span><strong>{s.warehouses[warehouse.id]?.count??0}<small> / {warehouse.capacity}</small></strong></div>
-    {s.completed&&<div className="success" role="status"><strong>✓ Уровень завершён</strong><p>{s.success}</p><button onClick={()=>{core.reset();refresh();}}>Пройти ещё раз</button></div>}
+    {assessment&&<section className="result-comparison" aria-label="Сравнение результата"><h3>{assessment.success?'Деталь соответствует заданию':'Деталь не соответствует заданию'}</h3><PartPreview part={assessment.expected} label="Ожидаемый результат"/><PartPreview part={assessment.actual} label="Фактический результат"/>{assessment.differences.map(d=><p key={d.characteristic}>{d.characteristic}: ожидалось {d.expected}; получено {d.actual}.</p>)}<button onClick={()=>{if(planning?.retry())onPlanChange?.();}}>Изменить план и попробовать снова</button></section>}{s.completed&&<div className="success" role="status"><strong>✓ Уровень завершён</strong><p>{s.success}</p><button onClick={reset}>Пройти ещё раз</button></div>}
     </aside></div>
     {test&&<section className="debug-panel"><div><span className="eyebrow">АКТИВНАЯ НОДА</span><strong>{active?registry[active.type].title:'—'}</strong><code>{s.activeNodeId}</code></div><div className="event-log"><h3>Журнал событий</h3>{core.log.map(event=><p key={event.sequence}><span>{String(event.sequence).padStart(2,'0')}</span>{event.message}</p>)}</div></section>}
     {!s.activeHint&&s.intro&&<div className="modal-backdrop"><section className="intro-modal" role="dialog" aria-modal="true" aria-label="Вступление"><IntroContent node={active}/><button className="primary" autoFocus onClick={()=>command('start')}>Продолжить →</button></section></div>}

@@ -216,7 +216,7 @@ test('supported v1 levels migrate with text, placements, node sizes and ordered 
     for (const name of ['turning', 'two-operations', 'welcome']) {
         const old = JSON.parse(readFileSync(new URL(`./fixtures/v1-${name}.json`, import.meta.url), 'utf8'));
         const l = parseLevel(JSON.stringify(old));
-        assert.equal(l.version, 3);
+        assert.equal(l.version, 4);
         assert.deepEqual(locatedPlacements(l).map(p=>({nodeId:p.nodeId,x:p.x,y:p.y})), old.placements);
         assert.equal(l.nodes.find(n => n.type === 'intro')!.params.text, old.nodes.find((n: {
             type: string;
@@ -241,7 +241,7 @@ test('migration and storage failures preserve old data and do not overwrite a cu
     const map = new Map([[LEGACY_STORAGE_KEY, raw]]);
     const store = { getItem: (k: string) => map.get(k) ?? null, setItem: (k: string, v: string) => { map.set(k, v); } };
     const l = loadLevel(store)!;
-    assert.equal(l.version, 3);
+    assert.equal(l.version, 4);
     assert.equal(map.get(LEGACY_STORAGE_KEY), raw);
     assert.equal(map.has(STORAGE_KEY), false);
     saveDraft(store, l);

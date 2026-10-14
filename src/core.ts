@@ -1,5 +1,5 @@
 import type { ExecutableLevel, Operation, ProductionLevel, MachineDefinition, WarehouseDefinition, HintDefinition } from './compiler';
-import { applyOperation, matches, matchesConfiguration, dimensions, type Part, type Requirements } from './manufacturing';
+import { applyOperation, matches, matchesFreeResult, matchesConfiguration, dimensions, type Part, type Requirements } from './manufacturing';
 import { operationCompatibility, type ItemSource } from './productionGraph';
 export type { Part } from './manufacturing';
 export type ItemStage = 'table' | 'loaded' | 'processing' | 'finished' | 'stored';
@@ -62,6 +62,7 @@ export interface CoreEvent {
     machineId?: string;
     itemId?: string;
     operationId?: string;
+    toolId?:string;
     warehouseId?: string;
     result?: boolean;
     part?: Part;
@@ -89,6 +90,7 @@ export class FactoryCore {
     get currentWarehouse(): WarehouseDefinition { const selected = this.warehouse(this.value.selected); if (selected)
         return selected; const id = this.value.location?.kind === 'warehouse' ? this.value.location.id : this.currentMachine.storeIds[0]; return this.resources.warehouses[id] ?? this.resources.warehouse; }
     get currentPartName() { return Object.values(this.resources.waits).find(w => w.machineId === this.currentMachine.id)?.requirements.name ?? this.resources.partName; }
+    get currentTool(){const m=this.currentMachine;return m.operationTools?.[this.currentOperation.id]??m.tool;}
     get currentOperation(): Operation { const m = this.currentMachine; return m.operations[this.value.machines[m.id].operationIndex]; }
     get state(): Readonly<CoreState> { const s = this.value; const m = !this.isWelcome ? this.value.machines[this.currentMachine.id] : undefined; const stage: ItemStage = s.location?.kind === 'warehouse' ? 'stored' : s.location?.kind === 'machine' ? (this.value.machines[s.location.id].stage === 'empty' ? 'table' : this.value.machines[s.location.id].stage as ItemStage) : 'table'; return structuredClone({ ...s, stage, operationIndex: m?.operationIndex ?? 0, elapsed: m?.elapsed ?? 0, part: s.item?.operationIds.length ? s.item : null, count: Object.values(s.warehouses).reduce((sum, w) => sum + w.count, 0), warehouseId: s.location?.kind === 'warehouse' ? s.location.id : null }); }
     get log() { return structuredClone(this.journal); }
@@ -234,7 +236,7 @@ export class FactoryCore {
             this.value.error = 'Проверка ждёт фактическую деталь из завершённого ожидания.';
             return;
         }
-        const correct = matchesConfiguration(data) && (!c.resultRequirements || matches(resultPart, c.resultRequirements));
+        const correct = matchesConfiguration(data) && (!c.resultRequirements || (this.level.mode==='production'&&this.resources.resultMode==='geometry'?matchesFreeResult:matches)(resultPart,c.resultRequirements));
         this.value.error = '';
         this.value.checkMessage = String(correct ? n.params.success : n.params.error);
         this.emit({ type: 'configuration-checked', nodeId: n.id, result: correct, message: this.value.checkMessage });
@@ -247,7 +249,7 @@ export class FactoryCore {
         const id = this.value.activeNodeId!;
         const w = this.resources.waits[id];
         const s = this.value;
-        if (s.location?.kind === 'warehouse' && s.location.id === w.warehouseId && s.warehouses[w.warehouseId].count >= w.quantity && s.lastMachineId === w.machineId && suitable(s.item, w.requirements, s.location.id, w.warehouseId)) {
+        if (s.location?.kind === 'warehouse' && s.location.id === w.warehouseId && s.warehouses[w.warehouseId].count >= w.quantity && s.lastMachineId === w.machineId && (this.resources.resultMode==='geometry'?matchesFreeResult(s.item,w.requirements):suitable(s.item,w.requirements,s.location.id,w.warehouseId))) {
             const run = this.runId;
             s.waitItems[id] = s.item!.blankId;
             this.emit({ type: 'wait-satisfied', nodeId: id, itemId: s.item!.blankId, message: 'Ожидание нашло подходящую фактическую деталь' });
@@ -292,8 +294,14 @@ export class FactoryCore {
             return Object.values(this.resources.machines).filter(m => s.machines[m.id].stage === 'empty' && this.resolveSource(m.source) && !this.machineCompatibility(m) && (s.transfer === 'install' ? s.location?.kind === 'table' && m.source.kind === 'blank' : s.location?.kind === 'warehouse' && (m.source.kind === 'warehouse' && m.source.id === s.location.id || m.source.kind === 'wait' && this.resources.waits[m.source.id].warehouseId === s.location.id))).map(m => m.id);
         return [];
     }
-    private machineCompatibility(m: MachineDefinition): string | null { if (!this.value.item)
-        return 'Фактический предмет ещё не появился.'; return operationCompatibility(this.value.item, m.kind, m.tool, m.operations.slice(this.value.machines[m.id].operationIndex)).join('\n') || null; }
+    private machineCompatibility(m:MachineDefinition):string|null {
+      if(!this.value.item)return 'Фактический предмет ещё не появился.';
+      let item=structuredClone(this.value.item);
+      for(const op of m.operations.slice(this.value.machines[m.id].operationIndex)){
+        const tool=m.operationTools?.[op.id]??m.tool;const errors=operationCompatibility(item,m.kind,tool,[op]);if(errors.length)return errors.join('\n');
+        item=applyOperation({...dimensions(item),id:item.blankId,name:'Предмет',material:item.material},item,op);
+      }return null;
+    }
     command(command: Command) { if (!this.can(command))
         return false; const s = this.value; if (command === 'continue-hint') {
         const h = s.activeHint!;
@@ -316,7 +324,7 @@ export class FactoryCore {
         const m = this.currentMachine, r = s.machines[m.id];
         r.stage = 'processing';
         r.elapsed = 0;
-        this.emit({ type: 'processing-started', objectId: m.id, machineId: m.id, operationId: this.currentOperation.id, itemId: s.item!.blankId, message: `Обработка: ${this.currentOperation.seconds} с` });
+        this.emit({ type: 'processing-started', objectId: m.id, machineId: m.id, operationId: this.currentOperation.id,toolId:this.currentTool.id, itemId: s.item!.blankId, message: `Обработка: ${this.currentOperation.seconds} с` });
     } return true; }
     click(id: string) {
         const s = this.value;
@@ -402,7 +410,7 @@ export class FactoryCore {
                 }
                 else
                     r.stage = 'finished';
-                this.emit({ type: 'processing-finished', objectId: id, machineId: id, itemId: s.item.blankId, operationId: op.id, part: s.item, message: `Операция ${index + 1} завершена: ${op.kind === 'turning' ? `Ø${op.diameter} × ${op.length} мм` : `снято ${op.depth} мм`}` });
+                this.emit({ type: 'processing-finished', objectId: id, machineId: id, itemId: s.item.blankId, operationId: op.id,toolId:(m.operationTools?.[op.id]??m.tool).id, part: s.item, message: `Операция ${index + 1} завершена: ${op.kind === 'turning' ? `Ø${op.diameter} × ${op.length} мм` : `снято ${op.depth} мм`}` });
                 if (run !== this.runId || this.value.disposed)
                     return;
             }

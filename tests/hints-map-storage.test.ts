@@ -239,14 +239,14 @@ test('points permit placement, block occupied deletion/shrink and move with stab
     assert.equal(placeObject(moved.level, 'blank', 3, 3)?.placements.find(p => p.nodeId === 'blank')?.pointId, free.id);
     assert.ok(setPointCount(l, 26).error);
 });
-test('v2 map migration retains images, node geometry, placements and old storage; v3 round trip is exact', () => {
+test('v2 map migration retains images, node geometry, placements and old storage; v4 round trip is exact', () => {
     const old = JSON.parse(readFileSync(new URL('./fixtures/v2-production.json', import.meta.url), 'utf8'));
     old.nodes.find((n: {
         id: string;
     }) => n.id === 'intro').size = { width: 420, height: 280 };
     const raw = JSON.stringify(old);
     const l = parseLevel(raw);
-    assert.equal(l.version, 3);
+    assert.equal(l.version, 4);
     assert.equal(l.nodes.filter(n => n.type === 'map').length, 1);
     assert.deepEqual(locatedPlacements(l).map(p => ({ nodeId: p.nodeId, x: p.x, y: p.y })), old.placements);
     assert.deepEqual(l.nodes.find(n => n.id === 'intro')!.size, { width: 420, height: 280 });

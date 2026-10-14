@@ -66,3 +66,18 @@ export function matchesConfiguration({actual,expected}:ConfigurationCheck):boole
     if(expected.operations&&(!actual.operations||!sameOperations(actual.operations,expected.operations)))return false;
     return true;
 }
+
+// In free planning, neighbouring sections with the same diameter describe the same geometry.
+export function cylinderProfile(part:Dimensions & {sections:readonly Section[]}):Section[]{
+ if(part.shape!=='cylinder')return [];
+ const out:Section[]=[];const shoulder=Math.max(0,part.length-part.sections.reduce((s,o)=>s+o.length,0));
+ for(const section of [...(shoulder>1e-6?[{diameter:part.diameter,length:shoulder}]:[]),...part.sections]){
+  if(section.length<=1e-6)continue;const last=out[out.length-1];if(last&&near(last.diameter,section.diameter))last.length+=section.length;else out.push({...section});
+ }return out;
+}
+export function matchesFreeResult(part:Part|null,expected:Requirements):boolean{
+ if(!part||part.material!==expected.material||!sameDimensions(part,expected))return false;
+ if(part.shape==='block')return true;
+ const actual=cylinderProfile(part),wanted=cylinderProfile(expected);
+ return actual.length===wanted.length&&actual.every((s,i)=>near(s.diameter,wanted[i].diameter)&&near(s.length,wanted[i].length));
+}

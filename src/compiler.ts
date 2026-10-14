@@ -44,6 +44,7 @@ export interface MachineDefinition {
         category: string;
         kind: string;
     };
+    operationTools?:Record<string,MachineDefinition['tool']>;
     operations: OperationSpec[];
     processId: string;
     storeIds: string[];
@@ -56,6 +57,7 @@ export interface WarehouseDefinition {
 }
 export interface ProductionLevel extends Scenario {
     mode: 'production';
+    resultMode?:'strict'|'geometry';
     blank: Blank;
     machines: Record<string, MachineDefinition>;
     warehouses: Record<string, WarehouseDefinition>;
@@ -110,6 +112,7 @@ function configurationCheck(level: Level, node: LevelNode): CompiledCheck {
     return c;
 }
 export function compileLevel(level: Level): ExecutableLevel {
+    if(level.productionMode==='player')throw new Error('Для плана игрока создайте PlanningCore; готовое производство ещё не выбрано.');
     const errors = validateLevel(level);
     if (errors.length)
         throw new Error(errors.map(e => e.message).join('\n'));

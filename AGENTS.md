@@ -7,8 +7,8 @@
 Это договорённость команды, а не техническая защита файлов.
 
 - Оформление: `src/style.css`, `src/classic.css`, `src/presentation/**`, будущие ресурсы `public/assets/**`.
-- Логика: `src/core.ts`, `src/level.ts`, `src/compiler.ts`, `src/validation.ts`, `src/storage.ts`, `src/connections.ts`, `src/editorFlow.ts`, `src/manufacturing.ts`, `src/migration.ts`, `src/imageData.ts`, `src/map.ts`, `src/productionGraph.ts`, исходная модель `src/production.ts`; соответствующие тесты в `tests/`.
-- Общие: `src/App.tsx`, `src/GraphEditor.tsx`, `src/ConnectionBuilder.tsx`, `src/Workshop.tsx`, `src/NodeProperties.tsx`, `src/MapSettings.tsx`, браузерная загрузка `src/images.ts`, точки входа `src/main.ts`, `src/bootstrap.tsx`, исходная сцена `src/classic.ts`, HTML, package.json/package-lock.json, конфигурация Vite/TypeScript/Docker/CI, документация и инструкции. Интеграционные UI-тесты также общие.
+- Логика: `src/core.ts`, `src/level.ts`, `src/compiler.ts`, `src/validation.ts`, `src/storage.ts`, `src/connections.ts`, `src/editorFlow.ts`, `src/manufacturing.ts`, `src/migration.ts`, `src/imageData.ts`, `src/map.ts`, `src/productionGraph.ts`, `src/catalog.ts`, `src/planning.ts`, `src/groups.ts`, `src/playerLevel.ts`, исходная модель `src/production.ts`; соответствующие тесты в `tests/`.
+- Общие: `src/App.tsx`, `src/GraphEditor.tsx`, `src/ConnectionBuilder.tsx`, `src/Workshop.tsx`, `src/NodeProperties.tsx`, `src/MapSettings.tsx`, `src/PlanningPlayer.tsx`, `src/CatalogProperties.tsx`, `src/PartPreview.tsx`, браузерная загрузка `src/images.ts`, точки входа `src/main.ts`, `src/bootstrap.tsx`, исходная сцена `src/classic.ts`, HTML, package.json/package-lock.json, конфигурация Vite/TypeScript/Docker/CI, документация и инструкции. Интеграционные UI-тесты также общие.
 
 Не меняйте чужую область попутно. Если задача требует общих файлов, делайте минимальные изменения и явно перечисляйте их в PR. Согласовывайте изменение контрактов между логикой и представлением.
 
@@ -21,3 +21,5 @@
 - Проекция изображения и зон клика общая. После изменения геометрии нод проверьте соединения, оба конца линий, перетаскивание и изменение размеров.
 - Выполняйте `npm test` и `npm run build`. Проверяйте затронутое поведение; сообщайте, какие проверки действительно выполнены и что осталось непроверенным. Не выдавайте jsdom за визуальную проверку браузером.
 - Коммитьте выбранные файлы задачи, открывайте PR в main; не объединяйте PR без инструкции пользователя. Не добавляйте секреты и сгенерированные node_modules/dist.
+
+В v4 авторское описание и каталог отделены от PlayerPlan. Проверка/предпросмотр и изготовление используют общие чистые функции обработки. Инструмент фиксируется у каждой операции, длительность — авторская. Группы и ноды сохраняют абсолютные координаты, только editorFlow переводит их в относительные для React Flow; рамки не компилируются.

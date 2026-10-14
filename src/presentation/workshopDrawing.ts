@@ -1,4 +1,5 @@
 import type Phaser from 'phaser';
+import {shaftSegments} from './partGeometry';
 
 export interface DrawingPlacement {readonly nodeId:string;readonly x:number;readonly y:number}
 export interface WorkshopDrawingData {
@@ -55,9 +56,7 @@ export class WorkshopDrawing {
       const blank=this.view.production?.blank;
       const sections=this.view.production?.part?.sections??[];
       const total=Number(blank?.length??60);
-      const shoulder=length*Math.max(0,1-sections.reduce((sum,section)=>sum+section.length,0)/total);
-      let cursor=shoulder;if(shoulder>0)segment(x,y,shoulder,r);
-      for(const section of sections){const len=length*section.length/total;segment(x+cursor,y+cursor*.24,len,r*section.diameter/Number(blank?.diameter??20));cursor+=len;}
+      for(const s of shaftSegments(total,Number(blank?.diameter??20),sections,length,r))segment(x+s.offset,y+s.offset*.24,s.length,s.radius);
     }else segment(x,y,length,r);
     if(this.view.production?.stage==='processing'){
       const offset=Math.sin(this.phase)*r*.6;
@@ -89,10 +88,10 @@ export class WorkshopDrawing {
     const partHere=n.type==='blank'&&(!production||s?.stage==='table')||n.type==='lathe'&&s?.stage==='finished';
     if((selection===n.id&&(n.type!=='blank'||partHere))||(partHere&&selection===production?.blank.id))this.g.lineStyle(3,0xcaa04b).strokeEllipse(x,y+7,110,53);
     if(s?.target&&(!s.targetIds||s.targetIds.includes(n.id))&&(n.type==='lathe'&&s.target==='machine'||n.type==='warehouse'&&s.target==='warehouse'))this.g.lineStyle(3,0x72aeb1).strokeEllipse(x,y+8,112,55);
-    if(n.type==='blank'){
+    if(n.type==='blank'||n.type==='table'){
       this.box(x-32,y+8,9,5,47,0xae9870,0x8e7d59,0x73694d);this.box(x+25,y+24,9,5,47,0xae9870,0x8e7d59,0x73694d);
       this.box(x-27,y-8,75,22,10,0xd0b98e,0xb49b75,0x938263);
-      if(!production||s?.stage==='table')this.cylinder(x-18,y-34,46,9,false);
+      if(n.type==='blank'&&(!production||s?.stage==='table'))this.cylinder(x-18,y-34,46,9,false);
     }else if(n.type==='lathe'&&n.machineKind==='mill'){
       this.box(x-28,y+5,78,24,42,0x83a493,0x618473,0x486b60);
       this.box(x-32,y-32,88,25,12,0xb0c5b5,0x7a9b87,0x678877);

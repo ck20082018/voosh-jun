@@ -1,6 +1,6 @@
-export const NODE_TYPES = ['start', 'intro', 'blank', 'tool', 'process', 'lathe', 'part', 'warehouse', 'task', 'wait', 'check', 'finish', 'hint', 'after', 'map'] as const;
+export const NODE_TYPES = ['start', 'intro', 'blank', 'tool', 'process', 'lathe', 'part', 'warehouse', 'task', 'wait', 'check', 'finish', 'hint', 'after', 'map', 'catalog', 'table'] as const;
 export type NodeKind = typeof NODE_TYPES[number];
-export type PortType = 'execution' | 'blank' | 'tool' | 'process' | 'machine' | 'part' | 'warehouse' | 'event' | 'actual-part';
+export type PortType = 'execution' | 'blank' | 'tool' | 'process' | 'machine' | 'part' | 'warehouse' | 'event' | 'actual-part' | 'catalog';
 export interface Port {
     id: string;
     label: string;
@@ -24,7 +24,8 @@ export type OperationSpec = {
     depth: number;
     seconds: number;
 };
-export type ParamValue = string | number | boolean | OperationSpec[] | Section[];
+export type AllowedOperation={kind:OperationSpec['kind'];seconds:number};
+export type ParamValue = string | number | boolean | OperationSpec[] | Section[] | string[] | AllowedOperation[];
 export type Params = Record<string, ParamValue>;
 export interface Parameter {
     key: string;
@@ -53,6 +54,7 @@ export interface LevelNode {
         y: number;
     };
     params: Params;
+    groupId?:string;
     size?: {
         width: number;
         height: number;
@@ -78,8 +80,11 @@ export interface LocatedPlacement extends MapPoint {
     nodeId: string;
     pointId: string;
 }
+export interface NodeGroup {id:string;name:string;color:string;position:{x:number;y:number};size:{width:number;height:number}}
 export interface Level {
-    version: 3;
+    version: 4;
+    productionMode:'ready'|'player';
+    groups:NodeGroup[];
     id: string;
     name: string;
     nodes: LevelNode[];
@@ -119,10 +124,12 @@ export const registry: Record<NodeKind, NodeDefinition> = {
     tool: { title: 'Инструмент', description: 'Категория и конкретный инструмент', parameters: [text('name', 'Название', 'Проходной резец'), select('category', 'Категория', 'turning', TOOL_CATEGORIES), select('kind', 'Инструмент', 'passing', TOOLS.turning)], inputs: [], outputs: [output('tool', 'Инструмент', 'tool')] },
     process: { title: 'Техпроцесс', description: 'Упорядоченные реализованные операции', parameters: [], inputs: [], outputs: [output('process', 'Техпроцесс', 'process')] },
     lathe: { title: 'Станок', description: 'Один станок с конфигурацией производства', parameters: [text('name', 'Название', 'Токарный станок'), select('kind', 'Тип станка', 'lathe', MACHINE_TYPES)], inputs: [input('blank', 'Заготовка', 'blank'), input('tool', 'Инструмент', 'tool'), input('process', 'Техпроцесс', 'process')], outputs: [output('machine', 'Станок', 'machine')] },
-    part: { title: 'Полученная деталь', description: 'Независимые требования, а не фактически изготовленная деталь', parameters: [text('name', 'Название', 'Ступенчатый валик'), text('material', 'Ожидаемый материал', 'Сталь'), ...dimensions], inputs: [input('machine', 'Станок', 'machine')], outputs: [output('part', 'Полученная деталь', 'part')] },
+    part: { title: 'Полученная деталь', description: 'Независимые требования, а не фактически изготовленная деталь', parameters: [text('name', 'Название', 'Ступенчатый валик'), text('material', 'Ожидаемый материал', 'Сталь'), ...dimensions], inputs: [input('machine', 'Станок', 'machine'),input('catalog','Каталог','catalog',false)], outputs: [output('part', 'Полученная деталь', 'part')] },
     warehouse: { title: 'Склад', description: 'Хранение готовой детали', parameters: [text('name', 'Название', 'Склад'), num('capacity', 'Вместимость', 1), select('mode', 'Режим склада', 'final', [{ value: 'final', label: 'Конечный' }, { value: 'intermediate', label: 'Промежуточный' }])], inputs: [], outputs: [output('warehouse', 'Склад', 'warehouse'), output('blank', 'Заготовка', 'blank')] },
     hint: { title: 'Подсказка', description: 'Сообщение сценария или успешного действия', parameters: [text('title', 'Заголовок', 'Подсказка'), text('text', 'Текст', 'Продолжайте работу.', false, true), select('display', 'Способ показа', 'panel', [{ value: 'panel', label: 'Небольшая панель' }, { value: 'modal', label: 'Модальное окно' }]), { key: 'confirm', label: 'Подтверждение «Продолжить»', type: 'boolean', default: true }, select('frequency', 'Частота', 'once', [{ value: 'once', label: 'Один раз за попытку' }, { value: 'each', label: 'После каждого действия' }])], inputs: [{ ...execIn, required: false }, input('event', 'После действия', 'event', false)], outputs: [execOut] },
     after: { title: 'После действия', description: 'Событие только успешного действия', parameters: [select('action', 'Действие', 'blank-installed', [{ value: 'blank-installed', label: 'Установка заготовки' }, { value: 'processing-finished', label: 'Завершение операции' }, { value: 'part-stored', label: 'Поступление детали на склад' }, { value: 'item-retrieved', label: 'Получение со склада' }, { value: 'configuration-checked', label: 'Успешная проверка выбора' }]), text('objectId', 'Объект (пусто — любой)', '', true)], inputs: [], outputs: [output('event', 'Событие', 'event')] },
+    catalog:{title:'Каталог',description:'Варианты для самостоятельного плана игрока',parameters:[],inputs:[],outputs:[output('catalog','Каталог','catalog')]},
+    table:{title:'Стол',description:'Фиксированное место выбранной заготовки',parameters:[text('name','Название','Стол с заготовкой')],inputs:[],outputs:[]},
     map: { title: 'Карта', description: 'Размеры и разрешённые точки размещения', parameters: [], inputs: [], outputs: [] },
 };
 export function defaultOperation(kind: OperationSpec['kind'] = 'turning', id: string = crypto.randomUUID()): OperationSpec { return kind === 'turning' ? { id, kind, diameter: 12, length: 30, seconds: 3 } : { id, kind, depth: 5, seconds: 3 }; }
@@ -136,11 +143,12 @@ export function makeNode(type: NodeKind, id: string, position = { x: 0, y: 0 }):
         params.operations = [defaultOperation('turning', `${id}-1`)];
     if (type === 'part')
         params.sections = [{ diameter: 12, length: 30 }];
+    if(type==='catalog'){params.blankIds=[];params.machineIds=[];params.toolIds=[];params.allowedOperations=[{kind:'turning',seconds:3}];}
     if (type === 'check')
         params.expectedOperations = [defaultOperation('turning', `${id}-expected-1`)];
     return { id, type, position, params };
 }
-export function emptyLevel(): Level { return { version: 3, id: crypto.randomUUID(), name: 'Новый уровень', nodes: [], edges: [], grid: { width: 5, height: 5, points: [] }, placements: [] }; }
+export function emptyLevel(): Level { return { version: 4,productionMode:'ready',groups:[], id: crypto.randomUUID(), name: 'Новый уровень', nodes: [], edges: [], grid: { width: 5, height: 5, points: [] }, placements: [] }; }
 export function connect(level: Level, s: string, sh: string, t: string, th: string) { level.edges.push({ id: `${s}-${sh}-${t}-${th}`, source: s, sourceHandle: sh, target: t, targetHandle: th }); }
 export function exampleLevel(): Level {
     const l = emptyLevel();
@@ -190,19 +198,28 @@ export function portPair(level: Level, edge: Omit<LevelEdge, 'id'>): {
     const s = level.nodes.find(n => n.id === edge.source), t = level.nodes.find(n => n.id === edge.target);
     if (!s || !t || !registry[s.type] || !registry[t.type])
         return null;
-    const output = nodePorts(s).outputs.find(p => p.id === edge.sourceHandle), input = nodePorts(t).inputs.find(p => p.id === edge.targetHandle);
+    const output = nodePorts(s,level).outputs.find(p => p.id === edge.sourceHandle), input = nodePorts(t,level).inputs.find(p => p.id === edge.targetHandle);
     return output && input ? { output, input } : null;
 }
 export function compatible(level: Level, edge: Omit<LevelEdge, 'id'>): boolean { const p = portPair(level, edge); return !!p && portsCompatible(p.output, p.input) && edge.source !== edge.target && (!!p.input.multiple || !level.edges.some(e => e.target === edge.target && e.targetHandle === edge.targetHandle)); }
 export function sourceNode(level: Level, target: LevelNode | undefined, port: string): LevelNode | undefined { return level.nodes.find(n => n.id === level.edges.find(e => e.target === target?.id && e.targetHandle === port)?.source); }
 export function deleteNodes(level: Level, ids: string[]): Level { if (level.nodes.some(n => ids.includes(n.id) && n.type === 'map') && level.placements.some(p => !ids.includes(p.nodeId)))
     return level; return { ...level, nodes: level.nodes.filter(n => !ids.includes(n.id)), edges: level.edges.filter(e => !ids.includes(e.source) && !ids.includes(e.target)), placements: level.placements.filter(p => !ids.includes(p.nodeId)) }; }
-export function nodePorts(node: LevelNode): Pick<NodeDefinition, 'inputs' | 'outputs'> { const d = registry[node.type]; return { inputs: d.inputs, outputs: d.outputs.filter(p => !(node.type === 'warehouse' && p.id === 'blank' && node.params.mode !== 'intermediate')) }; }
+export function catalogIds(level:Level):Set<string>{return new Set(level.nodes.filter(n=>n.type==='catalog').flatMap(n=>['blankIds','machineIds','toolIds'].flatMap(k=>Array.isArray(n.params[k])?n.params[k] as string[]:[])));}
+export function nodePorts(node:LevelNode,level?:Level):Pick<NodeDefinition,'inputs'|'outputs'>{
+ const d=registry[node.type];let inputs=d.inputs;
+ if(level?.productionMode==='player'){
+  if(node.type==='lathe'&&catalogIds(level).has(node.id))inputs=[];
+  if(node.type==='part')inputs=d.inputs.filter(p=>p.id!=='machine').map(p=>p.id==='catalog'?{...p,required:true}:p);
+ }else if(node.type==='part')inputs=d.inputs.filter(p=>p.id!=='catalog');
+ return {inputs,outputs:d.outputs.filter(p=>!(node.type==='warehouse'&&p.id==='blank'&&node.params.mode!=='intermediate'))};
+}
 export function portsCompatible(output: Port, input: Port): boolean { return output.type === input.type || output.type === 'actual-part' && input.type === 'blank'; }
 export function locatedPlacements(level: Pick<Level, 'grid' | 'placements'>): LocatedPlacement[] { return level.placements.flatMap(p => { const point = level.grid.points.find(point => point.id === p.pointId); return point ? [{ ...point, pointId: point.id, nodeId: p.nodeId }] : []; }); }
 export function placeObject(level: Level, nodeId: string, x: number, y: number): Level | null {
+    if(level.productionMode==='player'&&catalogIds(level).has(nodeId))return null;
     const point = level.grid.points.find(p => p.x === x && p.y === y);
-    if (!point || !level.nodes.some(n => n.id === nodeId && ['blank', 'lathe', 'warehouse'].includes(n.type)) || level.placements.some(p => p.nodeId !== nodeId && p.pointId === point.id))
+    if (!point || !level.nodes.some(n => n.id === nodeId && ['blank', 'lathe', 'warehouse', 'table'].includes(n.type)) || level.placements.some(p => p.nodeId !== nodeId && p.pointId === point.id))
         return null;
     return { ...level, placements: [...level.placements.filter(p => p.nodeId !== nodeId), { nodeId, pointId: point.id }] };
 }

@@ -1,3 +1,5 @@
+import {catalogErrors} from './catalog';
+import {groupErrors} from './groups';
 import { registry, nodePorts, portsCompatible, portPair, sourceNode, operations, sections, TOOLS, type Level, type LevelNode, type Params, type OperationSpec } from './level';
 import { producedPart, incomingPart, operationCompatibility, requirementsMachine, warehouseProducer } from './productionGraph';
 import { validateImageData, MAX_TOTAL_IMAGE_BYTES } from './imageData';
@@ -38,16 +40,20 @@ export function operationErrors(ops: unknown): string[] {
 export function validateLevel(level: Level): Issue[] {
     const issues: Issue[] = [];
     const add = (message: string, nodeId?: string) => issues.push({ message, nodeId });
-    if (level.version !== 3)
-        add('Требуется формат v3 после миграции.');
+    if (level.version !== 4)
+        add('Требуется формат v4 после миграции.');
     if (!level.name.trim())
         add('Укажите название уровня.');
+    for(const message of groupErrors(level))add(message);
+    if(!['ready','player'].includes(level.productionMode))add('Выберите режим производства.');
+    const player=level.productionMode==='player';if(player)issues.push(...catalogErrors(level));
     const ids = new Set<string>();
     let imageBytes = 0;
     for (const node of level.nodes) {
         if (ids.has(node.id))
             add('Идентификатор ноды повторяется.', node.id);
         ids.add(node.id);
+        if(!player&&node.type==='catalog')add('Каталог используется в режиме «План игрока».',node.id);
         const def = registry[node.type];
         if (!def) {
             add('Неизвестный тип ноды.', node.id);
@@ -112,10 +118,10 @@ export function validateLevel(level: Level): Issue[] {
     if (!count('finish'))
         add('Требуется завершение уровня.');
     const production = count('task') > 0 || count('wait') > 0;
-    if (count('blank') !== (production ? 1 : Math.min(count('blank'), 1)))
+    if (!player&&count('blank') !== (production ? 1 : Math.min(count('blank'), 1)))
         add('Допускается одна физическая заготовка.');
     for (const kind of ['lathe', 'warehouse', 'tool', 'process', 'part'])
-        if (production && !count(kind))
+        if (!player&&production && !count(kind))
             add(`Производственный уровень требует «${registry[kind as keyof typeof registry].title}».`);
     if (count('map') > 1 || production && count('map') !== 1)
         add('На производственном уровне требуется одна нода «Карта».');
@@ -148,13 +154,13 @@ export function validateLevel(level: Level): Issue[] {
         const def = registry[n.type];
         if (!def)
             continue;
-        for (const p of nodePorts(n).inputs) {
+        for (const p of nodePorts(n,level).inputs) {
             const checkRequired = n.type === 'check' && n.params[`check${p.id[0].toUpperCase()}${p.id.slice(1)}`] === true;
             const resultRequired = n.type === 'check' && n.params.checkResult === true && ['detail', 'requirements'].includes(p.id);
             if ((p.required || checkRequired || resultRequired) && !incoming.has(`${n.id}:${p.id}`))
                 add(`Не подключён вход «${p.label}».`, n.id);
         }
-        for (const p of nodePorts(n).outputs.filter(p => p.type === 'execution'))
+        for (const p of nodePorts(n,level).outputs.filter(p => p.type === 'execution'))
             if (!(n.type === 'hint' && level.edges.some(e => e.target === n.id && e.targetHandle === 'event')) && !outgoing.has(`${n.id}:${p.id}`))
                 add(`Не подключён выход выполнения «${p.label}».`, n.id);
     }
@@ -211,7 +217,7 @@ export function validateLevel(level: Level): Issue[] {
     for (const n of level.nodes.filter(n => (registry[n.type]?.inputs.some(p => p.type === 'execution') || n.type === 'start') && !(n.type === 'hint' && level.edges.some(e => e.target === n.id && e.targetHandle === 'event'))))
         if (!reachable.has(n.id))
             add('Нода сценария не достижима от начала уровня.', n.id);
-    for (const m of level.nodes.filter(n => n.type === 'lathe')) {
+    for (const m of level.nodes.filter(n => n.type === 'lathe'&&!player)) {
         try {
             const incoming = incomingPart(level, m), process = sourceNode(level, m, 'process'), tool = sourceNode(level, m, 'tool');
             if (process)
@@ -284,7 +290,7 @@ export function validateLevel(level: Level): Issue[] {
       const nextStack=new Set(stack);nextStack.add(id);
       for(const e of level.edges.filter(e=>e.source===id&&portPair(level,e)?.output.type==='execution'))itemPath(e.target,lastWait,nextStack);
     }
-    if(one('start'))itemPath(one('start')!.id,null);
+    if(!player&&one('start'))itemPath(one('start')!.id,null);
     // Node position/size belong to editor storage; production validation deliberately ignores them.
     const { width, height } = level.grid;
     if (!Number.isInteger(width) || !Number.isInteger(height) || width < 1 || height < 1 || width > 8 || height > 8)
@@ -307,7 +313,7 @@ export function validateLevel(level: Level): Issue[] {
     const occupied = new Set<string>(), placed = new Set<string>();
     for (const p of level.placements) {
         const n = level.nodes.find(n => n.id === p.nodeId);
-        if (!n || !['blank', 'lathe', 'warehouse'].includes(n.type))
+        if (!n || !(player?['table','warehouse']:['blank','lathe','warehouse','table']).includes(n.type))
             add('Размещение ссылается на отсутствующий или неподходящий объект.', p.nodeId);
         if (!pointIds.has(p.pointId))
             add('Размещение допускается только на разрешённой точке.', p.nodeId);
@@ -318,7 +324,7 @@ export function validateLevel(level: Level): Issue[] {
             add('Объект размещён несколько раз.', p.nodeId);
         placed.add(p.nodeId);
     }
-    for (const n of level.nodes.filter(n => ['blank', 'lathe', 'warehouse'].includes(n.type)))
+    for (const n of level.nodes.filter(n => (player?['table','warehouse']:['blank','lathe','warehouse','table']).includes(n.type)))
         if (!placed.has(n.id))
             add('Разместите объект на вкладке «Карта».', n.id);
     return issues;

@@ -1,6 +1,6 @@
 import { near } from './manufacturing';
 import { makeNode, type Level, type LevelNode, type LevelEdge, type OperationSpec } from './level';
-export interface LegacyV2Level extends Omit<Level, 'version' | 'grid' | 'placements'> {
+export interface LegacyV2Level extends Omit<Level, 'version' | 'grid' | 'placements' | 'productionMode' | 'groups'> {
     version: 2;
     grid: {
         width: number;
@@ -136,7 +136,7 @@ export function migrateV1(old: LegacyLevel): LegacyV2Level {
         fail('производственный уровень требует один станок');
     return l;
 }
-export function migrateV2(old: LegacyV2Level): Level {
+export function migrateV2(old: LegacyV2Level): LegacyV3Level {
     const nodes = structuredClone(old.nodes);
     for (const n of nodes) {
         if (n.type === 'warehouse')
@@ -162,3 +162,6 @@ export function migrateV2(old: LegacyV2Level): Level {
     }
     return { version: 3, id: old.id, name: old.name, nodes, edges: structuredClone(old.edges), grid: { ...old.grid, points }, placements };
 }
+
+export interface LegacyV3Level extends Omit<Level,'version'|'productionMode'|'groups'>{version:3}
+export function migrateV3(old:LegacyV3Level):Level{return {...structuredClone(old),version:4,productionMode:'ready',groups:[]};}
