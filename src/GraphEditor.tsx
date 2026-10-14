@@ -1,6 +1,6 @@
 import {createContext,useContext,useState,useCallback,useEffect,useLayoutEffect,useRef,type Dispatch,type SetStateAction} from 'react';
 import {ReactFlow,NodeResizer,Panel,Background,Controls,MiniMap,Handle,Position,useNodesState,useEdgesState,useUpdateNodeInternals,useNodesInitialized,useReactFlow,type NodeProps,type Edge,type Connection,type ReactFlowInstance} from '@xyflow/react';
-import {NODE_TYPES,registry,type Level,type NodeKind} from './level';
+import {NODE_TYPES,registry,nodePorts,portsCompatible,operations,type Level,type NodeKind} from './level';
 import {ConnectionBuilder} from './ConnectionBuilder';
 import {connectionIssue,addLevelConnection,type ConnectionDefinition} from './connections';
 import {reconcileNodes,reconcileEdges,updateLevelFromFlow,type FlowNode} from './editorFlow';
@@ -19,13 +19,13 @@ function FactoryNode({id,data,selected,positionAbsoluteX,positionAbsoluteY}:Node
   const updateInternals=useUpdateNodeInternals();
   // Port bounds must be re-read after content/layout changes and at new positions.
   useLayoutEffect(()=>{updateInternals(id);},[id,n.params,n.size,n.type,positionAbsoluteX,positionAbsoluteY,updateInternals]);
-  return <div className={`factory-node ${selected?'chosen':''} ${['start','intro','task','wait','finish'].includes(n.type)?'scenario-node':''}`}>
+  return <div className={`factory-node ${selected?'chosen':''} ${['start','intro','task','wait','check','finish','hint'].includes(n.type)?'scenario-node':''}`}>
     <NodeResizer isVisible={selected} minWidth={220} minHeight={160} maxWidth={900} maxHeight={900}/><div className="node-heading" title="Перетащите за заголовок"><span className="node-dot" />{d.title}<span className="drag-grip">⠿</span></div><p>{d.description}</p>
-    <div className="ports"><div>{d.inputs.map(p=><PortRow key={p.id} nodeId={id} port={p} output={false}/>)}</div><div>{d.outputs.map(p=><PortRow key={p.id} nodeId={id} port={p} output/>)}</div></div>
+    <div className="ports"><div>{nodePorts(n).inputs.map(p=><PortRow key={p.id} nodeId={id} port={p} output={false}/>)}</div><div>{nodePorts(n).outputs.map(p=><PortRow key={p.id} nodeId={id} port={p} output/>)}</div></div>
     {typeof n.params.name==='string'&&<div className="node-summary">{n.params.name}</div>}
     {n.type==='intro'&&<div className="node-summary">{String(n.params.title)}</div>}
     {n.type==='task'&&<div className="node-summary">{String(n.params.title)}</div>}
-    {n.type==='turning'&&<div className="node-summary">Ø{n.params.diameter} × {n.params.length} мм · {n.params.seconds} с</div>}
+    {n.type==='process'&&<div className="node-summary">Операций: {operations(n).length}</div>}
   </div>;
 }
 const nodeTypes={factory:FactoryNode};
@@ -66,6 +66,9 @@ export function GraphEditor({level,selected,focusNodeId,setLevel,setSelected,onI
     const position=instance.current.screenToFlowPosition({x:event.clientX,y:event.clientY});
     onAdd(type as NodeKind,{x:position.x-115,y:position.y-40});
   }}><ReactFlow<FlowNode,Edge> nodes={nodes} edges={edges} nodeTypes={nodeTypes} onInit={value=>{instance.current=value;onInit(value);}} onNodeClick={(_,node)=>setSelected(node.id)} onPaneClick={()=>{setSelected(null);setPending(null);}} onNodesChange={changes=>{
+    const removed=new Set(changes.flatMap(change=>change.type==='remove'?[change.id]:[]));
+    const protectedMaps=new Set(level.nodes.filter(n=>n.type==='map'&&removed.has(n.id)&&level.placements.some(p=>!removed.has(p.nodeId))).map(n=>n.id));
+    if(protectedMaps.size){onNotice('Нельзя удалить карту с размещёнными объектами. Сначала снимите объекты.');changes=changes.filter(change=>change.type!=='remove'||!protectedMaps.has(change.id));}
     onNodesChange(changes);
     setLevel(current=>updateLevelFromFlow(current,changes));
     setSelected(current=>{
@@ -81,6 +84,6 @@ export function GraphEditor({level,selected,focusNodeId,setLevel,setSelected,onI
   }} onConnect={connect} connectOnClick={false} connectionRadius={35} isValidConnection={connection=>!!connection.source&&!!connection.target&&!!connection.sourceHandle&&!!connection.targetHandle&&!connectionIssue(level,{source:connection.source,target:connection.target,sourceHandle:connection.sourceHandle,targetHandle:connection.targetHandle})} fitView fitViewOptions={{padding:.15}} minZoom={.25} maxZoom={1.7} deleteKeyCode={['Backspace','Delete']}>
     <Panel position="top-left"><button onClick={()=>setBuilder(value=>!value)}>+ Добавить связь</button>{builder&&<ConnectionBuilder level={level} onCreate={create} onClose={()=>setBuilder(false)}/>}</Panel>
     {pending&&<Panel position="top-right"><button onClick={()=>setPending(null)}>Отменить соединение</button></Panel>}
-    <Background gap={22} color="#ccd7cd"/><Controls/><MiniMap nodeColor={node=>['start','intro','task','wait','finish'].includes(level.nodes.find(item=>item.id===node.id)?.type??'blank')?'#c9b67f':'#99bfb4'} /><FocusAddedNode id={focusNodeId}/>
+    <Background gap={22} color="#ccd7cd"/><Controls/><MiniMap nodeColor={node=>['start','intro','task','wait','check','finish','hint'].includes(level.nodes.find(item=>item.id===node.id)?.type??'blank')?'#c9b67f':'#99bfb4'} /><FocusAddedNode id={focusNodeId}/>
   </ReactFlow>{!nodes.length&&<div className="graph-empty"><strong>Создайте свой уровень</strong><p>Добавляйте ноды кнопками слева или перетаскивайте их сюда.<br/>Начните с ноды «Начало уровня», затем соедините шаги.</p><button className="primary" onClick={()=>onAdd('start')}>+ Добавить начало уровня</button></div>}</div></PortsContext.Provider>;
 }

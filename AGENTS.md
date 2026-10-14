@@ -7,8 +7,8 @@
 Это договорённость команды, а не техническая защита файлов.
 
 - Оформление: `src/style.css`, `src/classic.css`, `src/presentation/**`, будущие ресурсы `public/assets/**`.
-- Логика: `src/core.ts`, `src/level.ts`, `src/compiler.ts`, `src/validation.ts`, `src/storage.ts`, `src/connections.ts`, `src/editorFlow.ts`, исходная модель `src/production.ts`; соответствующие тесты в `tests/`.
-- Общие: `src/App.tsx`, `src/GraphEditor.tsx`, `src/ConnectionBuilder.tsx`, `src/Workshop.tsx`, точки входа `src/main.ts`, `src/bootstrap.tsx`, исходная сцена `src/classic.ts`, HTML, package.json/package-lock.json, конфигурация Vite/TypeScript/Docker/CI, документация и инструкции. Интеграционные UI-тесты также общие.
+- Логика: `src/core.ts`, `src/level.ts`, `src/compiler.ts`, `src/validation.ts`, `src/storage.ts`, `src/connections.ts`, `src/editorFlow.ts`, `src/manufacturing.ts`, `src/migration.ts`, `src/imageData.ts`, `src/map.ts`, `src/productionGraph.ts`, исходная модель `src/production.ts`; соответствующие тесты в `tests/`.
+- Общие: `src/App.tsx`, `src/GraphEditor.tsx`, `src/ConnectionBuilder.tsx`, `src/Workshop.tsx`, `src/NodeProperties.tsx`, `src/MapSettings.tsx`, браузерная загрузка `src/images.ts`, точки входа `src/main.ts`, `src/bootstrap.tsx`, исходная сцена `src/classic.ts`, HTML, package.json/package-lock.json, конфигурация Vite/TypeScript/Docker/CI, документация и инструкции. Интеграционные UI-тесты также общие.
 
 Не меняйте чужую область попутно. Если задача требует общих файлов, делайте минимальные изменения и явно перечисляйте их в PR. Согласовывайте изменение контрактов между логикой и представлением.
 
