@@ -1,8 +1,29 @@
+import {addMap} from './map';
 import type {Node,NodeChange,Edge} from '@xyflow/react';
 import {MarkerType} from '@xyflow/react';
 import {deleteNodes,makeNode,portPair,type Level,type LevelNode,type NodeKind} from './level';
+import {ungroup} from './groups';
 
 export type FlowNode=Node<{definition:LevelNode},'factory'>;
+export type FrameNode=Node<{group:Level['groups'][number]},'frame'>;
+export type EditorNode=FlowNode|FrameNode;
+export function prepareEditorDeletion(level:Level,nodes:EditorNode[],edges:Edge[]){
+  const frames=new Set(nodes.filter(n=>n.type==='frame').map(n=>n.id));
+  let safe=nodes.filter(n=>n.type==='frame'||!n.data.definition.groupId||!frames.has(n.data.definition.groupId));
+  const removed=new Set(safe.map(n=>n.id));
+  safe=safe.filter(n=>n.type!=='factory'||n.data.definition.type!=='map'||!level.placements.some(p=>!removed.has(p.nodeId)));
+  const ids=new Set(safe.map(n=>n.id));
+  return {nodes:safe,edges:edges.filter(e=>e.selected||ids.has(e.source)||ids.has(e.target))};
+}
+export function reconcileEditorNodes(level:Level,selected:string|null,current:EditorNode[]):EditorNode[]{
+  const lookup=new Map(current.map(n=>[n.id,n]));
+  const frames:FrameNode[]=level.groups.map(group=>({...lookup.get(group.id),id:group.id,type:'frame',position:{...group.position},data:{group},selected:lookup.get(group.id)?.selected??group.id===selected,dragHandle:'.group-heading',zIndex:0,style:{width:group.size.width,height:group.size.height}}));
+  const children:FlowNode[]=level.nodes.map(definition=>{
+    const previous=lookup.get(definition.id);const group=level.groups.find(g=>g.id===definition.groupId);
+    return {...previous,id:definition.id,type:'factory',parentId:group?.id,position:{x:definition.position.x-(group?.position.x??0),y:definition.position.y-(group?.position.y??0)},data:{definition},selected:previous?.selected??definition.id===selected,dragHandle:'.node-heading',style:{width:definition.size?.width??230,...(definition.size?{height:definition.size.height}:{})}};
+  });
+  return [...frames,...children];
+}
 
 // Preserve React Flow's complete runtime node: dimensions, dragging and selection.
 // Only definition changes replace the corresponding fields; runtime data is never saved.
@@ -26,13 +47,23 @@ export function reconcileEdges(level:Level,current:Edge[]):Edge[]{
   });
   return next.length===current.length&&next.every((edge,i)=>edge===current[i])?current:next;
 }
-export function updateLevelFromFlow(level:Level,changes:NodeChange<FlowNode>[]):Level{
+export function updateLevelFromFlow(level:Level,changes:NodeChange<EditorNode>[]):Level{
   const removed=changes.flatMap(change=>change.type==='remove'?[change.id]:[]);
   const positions=new Map(changes.flatMap(change=>change.type==='position'&&change.position?[[change.id,change.position] as const]:[]));
   const sizes=new Map(changes.flatMap(change=>change.type==='dimensions'&&change.dimensions&&(change.resizing!==undefined||change.setAttributes)?[[change.id,change.dimensions] as const]:[]));
   if(!removed.length&&!positions.size&&!sizes.size)return level;
-  const clean=removed.length?deleteNodes(level,removed):level;
-  return {...clean,nodes:clean.nodes.map(node=>positions.has(node.id)||sizes.has(node.id)?{...node,...(positions.has(node.id)?{position:{...positions.get(node.id)!}}:{}),...(sizes.has(node.id)?{size:{...sizes.get(node.id)!}}:{})}:node)};
+  let clean=removed.length?deleteNodes(level,removed):level;
+  for(const id of removed)clean=ungroup(clean,id);
+  const groups=clean.groups.map(g=>({...g,position:positions.get(g.id)??g.position,size:sizes.get(g.id)??g.size}));
+  const nodes=clean.nodes.map(node=>{
+    const before=clean.groups.find(g=>g.id===node.groupId),after=groups.find(g=>g.id===node.groupId);
+    const relative=positions.get(node.id);
+    // A frame drag moves members once. Resizing a frame changes only its bounds.
+    const delta=before&&after&&!sizes.has(before.id)?{x:after.position.x-before.position.x,y:after.position.y-before.position.y}:{x:0,y:0};
+    const position=relative?{x:relative.x+(after?.position.x??0),y:relative.y+(after?.position.y??0)}:{x:node.position.x+delta.x,y:node.position.y+delta.y};
+    return {...node,position,...(sizes.has(node.id)?{size:{...sizes.get(node.id)!}}:{})};
+  });
+  return {...clean,groups,nodes};
 }
 export function findFreeNodePosition(nodes:LevelNode[],desired:{x:number;y:number}):{x:number;y:number}{
   const free=(x:number,y:number)=>!nodes.some(node=>x<node.position.x+(node.size?.width??230)+30&&x+260>node.position.x&&y<node.position.y+(node.size?.height??200)+30&&y+230>node.position.y);
@@ -48,6 +79,7 @@ export function findFreeNodePosition(nodes:LevelNode[],desired:{x:number;y:numbe
 }
 export function addEditorNode(level:Level,type:NodeKind,id:string,desired:{x:number;y:number}):Level{
   if(level.nodes.some(node=>node.id===id))return level;
+  if(type==='map'){const next=addMap(level,id);return {...next,nodes:next.nodes.map(n=>n.id===id?{...n,position:findFreeNodePosition(level.nodes,desired)}:n)};}
   const node=makeNode(type,id,findFreeNodePosition(level.nodes,desired));
   return {...level,nodes:[...level.nodes,node]};
 }

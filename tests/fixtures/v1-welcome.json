@@ -1,0 +1,64 @@
+{
+  "version": 1,
+  "id": "7fc22977-a728-41dd-9de5-3e5414e6f31b",
+  "name": "Приветствие",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "start",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "params": {}
+    },
+    {
+      "id": "intro",
+      "type": "intro",
+      "position": {
+        "x": 280,
+        "y": 0
+      },
+      "params": {
+        "title": "Добро пожаловать!",
+        "text": "Познакомьтесь с учебной мастерской. Для этого уровня оборудование не требуется."
+      },
+      "size": {
+        "width": 420,
+        "height": 280
+      }
+    },
+    {
+      "id": "finish",
+      "type": "finish",
+      "position": {
+        "x": 560,
+        "y": 0
+      },
+      "params": {
+        "text": "Знакомство завершено."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "welcome-1",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "intro",
+      "targetHandle": "in"
+    },
+    {
+      "id": "welcome-2",
+      "source": "intro",
+      "sourceHandle": "out",
+      "target": "finish",
+      "targetHandle": "in"
+    }
+  ],
+  "grid": {
+    "width": 5,
+    "height": 5
+  },
+  "placements": []
+}
