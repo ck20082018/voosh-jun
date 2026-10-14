@@ -17,10 +17,10 @@ export function prepareEditorDeletion(level:Level,nodes:EditorNode[],edges:Edge[
 }
 export function reconcileEditorNodes(level:Level,selected:string|null,current:EditorNode[]):EditorNode[]{
   const lookup=new Map(current.map(n=>[n.id,n]));
-  const frames:FrameNode[]=level.groups.map(group=>({...lookup.get(group.id),id:group.id,type:'frame',position:{...group.position},data:{group},selected:lookup.get(group.id)?.selected??group.id===selected,dragHandle:'.group-heading',zIndex:0,style:{width:group.size.width,height:group.size.height}}));
+  const frames:FrameNode[]=level.groups.map(group=>({...lookup.get(group.id),id:group.id,type:'frame',position:{...group.position},data:{group},selected:lookup.get(group.id)?.selected??group.id===selected,width:group.size.width,height:group.size.height,dragHandle:'.group-heading',zIndex:0,style:{width:group.size.width,height:group.size.height}}));
   const children:FlowNode[]=level.nodes.map(definition=>{
     const previous=lookup.get(definition.id);const group=level.groups.find(g=>g.id===definition.groupId);
-    return {...previous,id:definition.id,type:'factory',parentId:group?.id,position:{x:definition.position.x-(group?.position.x??0),y:definition.position.y-(group?.position.y??0)},data:{definition},selected:previous?.selected??definition.id===selected,dragHandle:'.node-heading',style:{width:definition.size?.width??230,...(definition.size?{height:definition.size.height}:{})}};
+    return {...previous,id:definition.id,type:'factory',parentId:group?.id,width:definition.size?.width,height:definition.size?.height,position:{x:definition.position.x-(group?.position.x??0),y:definition.position.y-(group?.position.y??0)},data:{definition},selected:previous?.selected??definition.id===selected,dragHandle:'.node-heading',style:{width:definition.size?.width??230,...(definition.size?{height:definition.size.height}:{})}};
   });
   return [...frames,...children];
 }

@@ -6,7 +6,7 @@ import {ConnectionBuilder} from './ConnectionBuilder';
 import {connectionIssue,addLevelConnection,type ConnectionDefinition} from './connections';
 import {reconcileEditorNodes,reconcileEdges,updateLevelFromFlow,prepareEditorDeletion,type FlowNode,type FrameNode,type EditorNode} from './editorFlow';
 
-const PortsContext=createContext<{level:Level;pending:{nodeId:string;portId:string}|null;choose:(nodeId:string,portId:string,output:boolean)=>void}|null>(null);
+const PortsContext=createContext<{level:Level;pending:{nodeId:string;portId:string}|null;choose:(nodeId:string,portId:string,output:boolean)=>void;begin?:()=>void;end?:()=>void}|null>(null);
 function PortRow({nodeId,port,output}:{nodeId:string;port:import('./level').Port;output:boolean}){
  const context=useContext(PortsContext)!;
  const node=context.level.nodes.find(node=>node.id===nodeId);if(!node)return null;
@@ -21,7 +21,7 @@ function FactoryNode({id,data,selected,positionAbsoluteX,positionAbsoluteY}:Node
   // Port bounds must be re-read after content/layout changes and at new positions.
   useLayoutEffect(()=>{updateInternals(id);},[id,n.params,n.size,n.type,context.level.productionMode,positionAbsoluteX,positionAbsoluteY,updateInternals]);
   return <div className={`factory-node ${selected?'chosen':''} ${['start','intro','task','wait','check','finish','hint'].includes(n.type)?'scenario-node':''}`}>
-    <NodeResizer isVisible={selected} minWidth={220} minHeight={160} maxWidth={900} maxHeight={900}/><div className="node-heading" title="Перетащите за заголовок"><span className="node-dot" />{d.title}<span className="drag-grip">⠿</span></div><p>{d.description}</p>
+    <NodeResizer onResizeStart={()=>context.begin?.()} onResizeEnd={()=>context.end?.()} isVisible={selected} minWidth={220} minHeight={160} maxWidth={900} maxHeight={900}/><div className="node-heading" title="Перетащите за заголовок"><span className="node-dot" />{d.title}<span className="drag-grip">⠿</span></div><p>{d.description}</p>
     <div className="ports"><div>{nodePorts(n,context.level).inputs.map(p=><PortRow key={p.id} nodeId={id} port={p} output={false}/>)}</div><div>{nodePorts(n,context.level).outputs.map(p=><PortRow key={p.id} nodeId={id} port={p} output/>)}</div></div>
     {typeof n.params.name==='string'&&<div className="node-summary">{n.params.name}</div>}
     {n.type==='intro'&&<div className="node-summary">{String(n.params.title)}</div>}
@@ -29,7 +29,7 @@ function FactoryNode({id,data,selected,positionAbsoluteX,positionAbsoluteY}:Node
     {n.type==='process'&&<div className="node-summary">Операций: {operations(n).length}</div>}
   </div>;
 }
-function GroupFrame({data,selected}:NodeProps<FrameNode>){return <div className="node-group-frame" style={{borderColor:data.group.color,backgroundColor:data.group.color+'18'}}><NodeResizer isVisible={selected} minWidth={200} minHeight={140} maxWidth={10000} maxHeight={10000}/><div className="group-heading">{data.group.name} ⠿</div></div>;}
+function GroupFrame({data,selected}:NodeProps<FrameNode>){const context=useContext(PortsContext)!;return <div className="node-group-frame" style={{borderColor:data.group.color,backgroundColor:data.group.color+'18'}}><NodeResizer onResizeStart={()=>context.begin?.()} onResizeEnd={()=>context.end?.()} isVisible={selected} minWidth={200} minHeight={140} maxWidth={10000} maxHeight={10000}/><div className="group-heading">{data.group.name} ⠿</div></div>;}
 const nodeTypes={factory:FactoryNode,frame:GroupFrame};
 function FocusAddedNode({id}:{id:string|null}){
   const initialized=useNodesInitialized();const flow=useReactFlow<EditorNode,Edge>();
@@ -40,8 +40,8 @@ function FocusAddedNode({id}:{id:string|null}){
   },[id,initialized,flow]);
   return null;
 }
-interface Props {level:Level;selected:string|null;focusNodeId:string|null;setLevel:Dispatch<SetStateAction<Level>>;setSelected:Dispatch<SetStateAction<string|null>>;onInit:(instance:ReactFlowInstance<EditorNode,Edge>|null)=>void;onAdd:(type:NodeKind,position?:{x:number;y:number})=>void;onNotice:(message:string)=>void}
-export function GraphEditor({level,selected,focusNodeId,setLevel,setSelected,onInit,onAdd,onNotice}:Props){
+interface Props {level:Level;selected:string|null;focusNodeId:string|null;setLevel:Dispatch<SetStateAction<Level>>;setSelected:Dispatch<SetStateAction<string|null>>;onInit:(instance:ReactFlowInstance<EditorNode,Edge>|null)=>void;onAdd:(type:NodeKind,position?:{x:number;y:number})=>void;onNotice:(message:string)=>void;onEditStart?:()=>void;onEditEnd?:()=>void;resetToken?:number}
+export function GraphEditor({level,selected,focusNodeId,setLevel,setSelected,onInit,onAdd,onNotice,onEditStart,onEditEnd,resetToken}:Props){
   const [nodes,setNodes,onNodesChange]=useNodesState<EditorNode>(reconcileEditorNodes(level,selected,[]));
   const [edges,setEdges,onEdgesChange]=useEdgesState<Edge>(reconcileEdges(level,[]));
   const [pending,setPending]=useState<{nodeId:string;portId:string}|null>(null);
@@ -72,10 +72,18 @@ export function GraphEditor({level,selected,focusNodeId,setLevel,setSelected,onI
   useEffect(()=>{setNodes(current=>reconcileEditorNodes(level,selected,current));},[level.nodes,level.groups,selected,setNodes]);
   useEffect(()=>{setEdges(current=>reconcileEdges(level,current));},[level.edges,level.nodes,setEdges]);
   useEffect(()=>()=>onInit(null),[onInit]);
+  const lastResetToken=useRef(resetToken);
+  useEffect(()=>{
+    if(lastResetToken.current===resetToken)return;lastResetToken.current=resetToken;
+    setPending(null);gesture.current=null;setSelectionBox(null);
+    setNodes(current=>reconcileEditorNodes(level,null,current).map(n=>({...n,selected:false,dragging:false,resizing:false})));
+    setEdges(current=>reconcileEdges(level,current).map(e=>({...e,selected:false})));
+  },[resetToken]);
   const create=useCallback((edge:ConnectionDefinition):boolean=>{
+    onEditEnd?.();
     const error=connectionIssue(level,edge);if(error){onNotice(error);return false;}
     const id=crypto.randomUUID();setLevel(current=>addLevelConnection(current,edge,id));setPending(null);onNotice('Связь добавлена.');return true;
-  },[level,setLevel,onNotice]);
+  },[level,setLevel,onNotice,onEditEnd]);
   const connect=useCallback((connection:Connection)=>{
     if(connection.sourceHandle&&connection.targetHandle)create({source:connection.source,target:connection.target,sourceHandle:connection.sourceHandle,targetHandle:connection.targetHandle});
   },[create]);
@@ -84,7 +92,7 @@ export function GraphEditor({level,selected,focusNodeId,setLevel,setSelected,onI
     if(!pending){onNotice('Сначала нажмите подпись выхода справа у другой ноды.');return;}
     create({source:pending.nodeId,sourceHandle:pending.portId,target:nodeId,targetHandle:portId});
   }
-  return <PortsContext.Provider value={{level,pending,choose}}><div className="flow-host" ref={host} onContextMenu={event=>event.preventDefault()} onMouseDownCapture={event=>{
+  return <PortsContext.Provider value={{level,pending,choose,begin:onEditStart,end:onEditEnd}}><div className="flow-host" ref={host} onContextMenu={event=>event.preventDefault()} onMouseDownCapture={event=>{
     const target=event.target as Element;
     if(event.button!==2||!target.closest('.react-flow__pane')||target.closest('.react-flow__panel,.react-flow__controls,button,input,select,textarea,.react-flow__handle,.react-flow__resize-control'))return;
     event.preventDefault();event.stopPropagation();
@@ -111,7 +119,7 @@ export function GraphEditor({level,selected,focusNodeId,setLevel,setSelected,onI
     onEdgesChange(changes);
     const removed=new Set(changes.flatMap(change=>change.type==='remove'?[change.id]:[]));
     if(removed.size)setLevel(current=>({...current,edges:current.edges.filter(edge=>!removed.has(edge.id))}));
-  }} onBeforeDelete={async({nodes,edges})=>prepareEditorDeletion(level,nodes,edges)} onConnect={connect} connectOnClick={false} connectionRadius={35} isValidConnection={connection=>!!connection.source&&!!connection.target&&!!connection.sourceHandle&&!!connection.targetHandle&&!connectionIssue(level,{source:connection.source,target:connection.target,sourceHandle:connection.sourceHandle,targetHandle:connection.targetHandle})} selectionOnDrag={false} selectionKeyCode={null} panOnDrag={[0,1]} multiSelectionKeyCode="Shift" fitView fitViewOptions={{padding:.15}} minZoom={.25} maxZoom={1.7} deleteKeyCode={['Backspace','Delete']}>
+  }} onNodeDragStart={()=>onEditStart?.()} onNodeDragStop={()=>onEditEnd?.()} onBeforeDelete={async({nodes,edges})=>{const safe=prepareEditorDeletion(level,nodes,edges);if(safe.nodes.length||safe.edges.length)onEditStart?.();return safe;}} onDelete={()=>onEditEnd?.()} onConnect={connect} connectOnClick={false} connectionRadius={35} isValidConnection={connection=>!!connection.source&&!!connection.target&&!!connection.sourceHandle&&!!connection.targetHandle&&!connectionIssue(level,{source:connection.source,target:connection.target,sourceHandle:connection.sourceHandle,targetHandle:connection.targetHandle})} selectionOnDrag={false} selectionKeyCode={null} panOnDrag={[0,1]} multiSelectionKeyCode="Shift" fitView fitViewOptions={{padding:.15}} minZoom={.25} maxZoom={1.7} deleteKeyCode={['Backspace','Delete']}>
     <Panel position="top-left"><button disabled={nodes.filter(n=>n.type==='factory'&&n.selected&&!n.data.definition.groupId).length<2} onClick={()=>{const ids=nodes.filter(n=>n.type==='factory'&&n.selected&&!n.data.definition.groupId).map(n=>n.id);setLevel(current=>groupNodes(current,ids));}}>Группировать выделенные</button><small>ЛКМ — перемещение поля · ПКМ — рамка · Shift + клик</small><button onClick={()=>setBuilder(value=>!value)}>+ Добавить связь</button>{builder&&<ConnectionBuilder level={level} onCreate={create} onClose={()=>setBuilder(false)}/>}</Panel>
     {pending&&<Panel position="top-right"><button onClick={()=>setPending(null)}>Отменить соединение</button></Panel>}
     <Background gap={22} color="#ccd7cd"/><Controls/><MiniMap nodeColor={node=>['start','intro','task','wait','check','finish','hint'].includes(level.nodes.find(item=>item.id===node.id)?.type??'blank')?'#c9b67f':'#99bfb4'} /><FocusAddedNode id={focusNodeId}/>
