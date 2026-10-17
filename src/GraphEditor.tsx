@@ -2,6 +2,7 @@ import {createContext,useContext,useState,useCallback,useEffect,useLayoutEffect,
 import {ReactFlow,NodeResizer,Panel,Background,Controls,MiniMap,Handle,Position,useNodesState,useEdgesState,useUpdateNodeInternals,useNodesInitialized,useReactFlow,type NodeProps,type Edge,type Connection,type ReactFlowInstance} from '@xyflow/react';
 import {NODE_TYPES,registry,type Level,type NodeKind} from './level';
 import {ConnectionBuilder} from './ConnectionBuilder';
+import {Icon} from './ui/Icon';
 import {connectionIssue,addLevelConnection,type ConnectionDefinition} from './connections';
 import {reconcileNodes,reconcileEdges,updateLevelFromFlow,type FlowNode} from './editorFlow';
 
@@ -20,7 +21,7 @@ function FactoryNode({id,data,selected,positionAbsoluteX,positionAbsoluteY}:Node
   // Port bounds must be re-read after content/layout changes and at new positions.
   useLayoutEffect(()=>{updateInternals(id);},[id,n.params,n.size,n.type,positionAbsoluteX,positionAbsoluteY,updateInternals]);
   return <div className={`factory-node ${selected?'chosen':''} ${['start','intro','task','wait','finish'].includes(n.type)?'scenario-node':''}`}>
-    <NodeResizer isVisible={selected} minWidth={220} minHeight={160} maxWidth={900} maxHeight={900}/><div className="node-heading" title="Перетащите за заголовок"><span className="node-dot" />{d.title}<span className="drag-grip">⠿</span></div><p>{d.description}</p>
+    <NodeResizer isVisible={selected} minWidth={220} minHeight={160} maxWidth={900} maxHeight={900}/><div className="node-heading" title="Перетащите за заголовок"><span className="node-dot" />{d.title}<span className="drag-grip" aria-hidden="true"><Icon name="move" size={14}/></span></div><p>{d.description}</p>
     <div className="ports"><div>{d.inputs.map(p=><PortRow key={p.id} nodeId={id} port={p} output={false}/>)}</div><div>{d.outputs.map(p=><PortRow key={p.id} nodeId={id} port={p} output/>)}</div></div>
     {typeof n.params.name==='string'&&<div className="node-summary">{n.params.name}</div>}
     {n.type==='intro'&&<div className="node-summary">{String(n.params.title)}</div>}

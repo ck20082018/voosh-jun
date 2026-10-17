@@ -38,7 +38,7 @@ Object.defineProperty(globalThis,'ResizeObserver',{value:ResizeObserverMock,conf
 Object.defineProperty(dom.window,'ResizeObserver',{value:ResizeObserverMock});
 const {createElement}=await import('react');
 const {render,fireEvent,waitFor,cleanup,act}=await import('@testing-library/react');
-const {App}=await import('../src/App');
+const {EditorApp:App}=await import('../src/Editor');
 afterEach(()=>{cleanup();localStorage.clear();});
 async function settle(){await act(async()=>{await new Promise(resolve=>setTimeout(resolve,60));});}
 
@@ -139,7 +139,7 @@ test('editor UI: dragging from an output handle to a free input creates and save
 
 test('editor UI: welcome example runs without a workshop and can be completed',async()=>{
  const view=render(createElement(App));await settle();fireEvent.click(view.getByRole('button',{name:'Приветствие'}));await settle();
- assert.equal(view.container.querySelectorAll('.react-flow__node').length,3);fireEvent.click(view.getByRole('button',{name:'▶ Протестировать'}));await settle();assert.ok(view.container.textContent?.includes('Добро пожаловать!'));assert.equal(view.container.querySelector('canvas'),null);fireEvent.click(view.getByRole('button',{name:'Начать →'}));await settle();assert.ok(view.container.textContent?.includes('Знакомство завершено.'));
+ assert.equal(view.container.querySelectorAll('.react-flow__node').length,3);fireEvent.click(view.getByRole('button',{name:'Протестировать'}));await settle();assert.ok(view.container.textContent?.includes('Добро пожаловать!'));assert.equal(view.container.querySelector('canvas'),null);fireEvent.click(view.getByRole('button',{name:'Начать →'}));await settle();assert.ok(view.container.textContent?.includes('Знакомство завершено.'));
 });
 test('editor UI: labels create a connection without hitting a small handle; duplicates are rejected',async()=>{
  const {welcomeLevel}=await import('../src/level');const level=welcomeLevel();level.edges=[];localStorage.setItem('factory-level-v1',JSON.stringify(level));

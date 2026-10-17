@@ -1,5 +1,13 @@
 import { createRoot } from 'react-dom/client';
-import { App } from './App';
+import '@fontsource-variable/onest';
+import '@fontsource-variable/unbounded';
 import '@xyflow/react/dist/style.css';
-import './style.css';
+import './ui/tokens.css';
+import './ui/ui.css';
+import './scene/scene.css';
+import './screens/drawing.css';
+import './screens/shell.css';
+import './screens/mission.css';
+import './editor.css';
+import { App } from './App';
 createRoot(document.querySelector('#app')!).render(<App />);

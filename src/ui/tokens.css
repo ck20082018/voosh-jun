@@ -1,0 +1,167 @@
+/* Дизайн-система «Учебный завод»: токены.
+   Палитра «ночная смена»: сине-графитовая основа, светлая «бумага» для чертежей,
+   функциональные акценты: янтарный — процесс, бирюзовый — интерактив, зелёный — успех, красный — ошибка. */
+:root {
+  --font-text: 'Onest Variable', 'Onest', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --font-display: 'Unbounded Variable', 'Unbounded', 'Onest Variable', system-ui, sans-serif;
+
+  --ink-950: #0b111c;
+  --ink-900: #101828;
+  --ink-850: #142036;
+  --ink-800: #1a2840;
+  --ink-700: #243551;
+  --ink-600: #31466a;
+  --ink-500: #4b6089;
+  --ink-400: #7385a6;
+  --ink-300: #98a8c4;
+  --ink-200: #c2cde1;
+  --ink-100: #e3e9f3;
+
+  --paper-50: #f8fafc;
+  --paper-100: #eef2f7;
+  --paper-200: #dde4ed;
+  --paper-300: #c5d0de;
+  --paper-500: #8593a8;
+
+  --amber-300: #ffd27d;
+  --amber-500: #f6a823;
+  --amber-600: #d98c0b;
+  --amber-700: #9c6204;
+  --teal-300: #76e4d9;
+  --teal-500: #22c3b3;
+  --teal-600: #13998b;
+  --teal-700: #0e6f65;
+  --green-400: #74d691;
+  --green-500: #3fbd6a;
+  --green-700: #1f7a45;
+  --red-400: #ff8a76;
+  --red-500: #e8553f;
+  --red-700: #a42f1d;
+
+  /* семантика (тёмная основа по умолчанию) */
+  --bg: var(--ink-950);
+  --bg-raised: var(--ink-900);
+  --surface-1: var(--ink-850);
+  --surface-2: var(--ink-800);
+  --surface-3: var(--ink-700);
+  --line: rgba(152, 168, 196, 0.16);
+  --line-strong: rgba(152, 168, 196, 0.32);
+  --text: #e8edf6;
+  --text-dim: var(--ink-300);
+  --text-faint: var(--ink-400);
+  --accent: var(--teal-500);
+  --accent-strong: var(--teal-300);
+  --accent-ink: #04201d;
+  --process: var(--amber-500);
+  --process-strong: var(--amber-300);
+  --ok: var(--green-500);
+  --ok-strong: var(--green-400);
+  --err: var(--red-500);
+  --err-strong: var(--red-400);
+  --focus: var(--teal-300);
+
+  --r-xs: 6px;
+  --r-sm: 9px;
+  --r-md: 13px;
+  --r-lg: 18px;
+  --r-pill: 999px;
+
+  --e-1: 0 1px 0 rgba(255, 255, 255, 0.04) inset, 0 1px 2px rgba(3, 7, 14, 0.5);
+  --e-2: 0 1px 0 rgba(255, 255, 255, 0.07) inset, 0 12px 28px -8px rgba(3, 7, 14, 0.65), 0 2px 6px rgba(3, 7, 14, 0.4);
+  --e-3: 0 1px 0 rgba(255, 255, 255, 0.08) inset, 0 40px 80px -20px rgba(2, 5, 12, 0.85), 0 8px 20px rgba(2, 5, 12, 0.5);
+
+  --ease-out: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-inout: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-1: 120ms;
+  --dur-2: 220ms;
+  --dur-3: 440ms;
+
+  --rail-w: 84px;
+  --topbar-h: 58px;
+
+  color-scheme: dark;
+  font-family: var(--font-text);
+  font-size: 15px;
+  line-height: 1.5;
+  font-feature-settings: 'tnum' 1, 'cv11' 1;
+  font-synthesis: none;
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Светлая «бумажная» тема: редактор организатора и чертёжные листы */
+.theme-paper {
+  --bg: var(--paper-100);
+  --bg-raised: var(--paper-50);
+  --surface-1: #ffffff;
+  --surface-2: var(--paper-100);
+  --surface-3: var(--paper-200);
+  --line: rgba(24, 40, 66, 0.14);
+  --line-strong: rgba(24, 40, 66, 0.3);
+  --text: var(--ink-900);
+  --text-dim: #44546f;
+  --text-faint: #66758f;
+  --accent: var(--teal-600);
+  --accent-strong: var(--teal-700);
+  --accent-ink: #ffffff;
+  --process: var(--amber-600);
+  --process-strong: var(--amber-700);
+  --ok: var(--green-700);
+  --ok-strong: var(--green-700);
+  --err: var(--red-700);
+  --err-strong: var(--red-700);
+  --focus: var(--teal-600);
+  --e-1: 0 1px 2px rgba(20, 32, 54, 0.12);
+  --e-2: 0 10px 26px -10px rgba(20, 32, 54, 0.35), 0 2px 5px rgba(20, 32, 54, 0.12);
+  --e-3: 0 30px 60px -20px rgba(20, 32, 54, 0.5), 0 6px 16px rgba(20, 32, 54, 0.18);
+  color-scheme: light;
+}
+
+*,
+*::before,
+*::after { box-sizing: border-box; }
+
+html, body, #app { height: 100%; }
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  overflow-x: hidden;
+}
+
+h1, h2, h3, h4, p { margin: 0; }
+button, input, select, textarea { font: inherit; color: inherit; }
+button { cursor: pointer; }
+a { color: var(--accent-strong); }
+
+:focus-visible {
+  outline: 2px solid var(--focus);
+  outline-offset: 2px;
+  border-radius: var(--r-xs);
+}
+
+/* Типографика */
+.t-display { font-family: var(--font-display); font-weight: 600; letter-spacing: -0.02em; line-height: 1.1; }
+.t-h1 { font-family: var(--font-display); font-weight: 600; font-size: clamp(26px, 3.2vw, 40px); letter-spacing: -0.025em; line-height: 1.08; }
+.t-h2 { font-family: var(--font-display); font-weight: 560; font-size: 20px; letter-spacing: -0.02em; line-height: 1.2; }
+.t-h3 { font-weight: 650; font-size: 16px; line-height: 1.3; }
+.t-body { font-size: 15px; line-height: 1.55; }
+.t-small { font-size: 13px; line-height: 1.45; }
+.t-dim { color: var(--text-dim); }
+.t-faint { color: var(--text-faint); }
+.num { font-variant-numeric: tabular-nums; }
+.sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* Режим уменьшенной анимации: системная настройка или переключатель в профиле */
+:root[data-motion='reduce'] *,
+:root[data-motion='reduce'] *::before,
+:root[data-motion='reduce'] *::after {
+  animation-duration: 0.001ms !important;
+  animation-delay: 0ms !important;
+  animation-iteration-count: 1 !important;
+  transition-duration: 0.001ms !important;
+  scroll-behavior: auto !important;
+}

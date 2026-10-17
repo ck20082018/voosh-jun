@@ -1,112 +1,204 @@
-import {lazy,Suspense,useCallback,useEffect,useMemo,useReducer,useRef,useState} from 'react';
-import type {Edge,ReactFlowInstance} from '@xyflow/react';
-import {registry,NODE_TYPES,exampleLevel,welcomeLevel,twoOperationsLevel,emptyLevel,deleteNodes,placeObject,type Level,type NodeKind} from './level';
-import {validateLevel,type Issue} from './validation';
-import {compileLevel} from './compiler';
-import {FactoryCore,type Command} from './core';
-import {loadLevel,saveDraft,parseLevel,serializeLevel} from './storage';
-const Workshop=lazy(()=>import('./Workshop').then(module=>({default:module.Workshop})));
-function SceneLoading(){return <div className="scene-loading">Загрузка цеха…</div>;}
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { DIRECTIONS, MISSIONS, missionById } from './platform/missions';
+import { olympiadById, stageKey } from './platform/olympiads';
+import { computeScore } from './platform/scoring';
+import { applyMissionAttempt, applyStageAttempt, defaultProfile, loadProfile, lockReason, markStageStarted, markStarted, saveProfile, missionStatus, isPassed, type AttemptResult, type Profile } from './platform/progress';
+import type { MissionSession } from './platform/session';
+import type { ResultData } from './platform/result';
+import { applyMotionSetting, type MotionSetting } from './ui/motion';
+import { Icon, type IconName } from './ui/Icon';
+import { Button } from './ui/primitives';
+import { Hub } from './screens/Hub';
+import { MissionMap } from './screens/MissionMap';
+import { MissionScreen } from './screens/MissionScreen';
+import { Olympiads, stageState } from './screens/Olympiads';
+import { ProfileScreen } from './screens/Profile';
+import { ResultScreen } from './screens/ResultScreen';
+import { navigate, useRoute } from './screens/shared';
 
-import {addEditorNode,type FlowNode} from './editorFlow';
-import {GraphEditor} from './GraphEditor';
-function initialProject():{level:Level;notice:string}{try{return {level:loadLevel(localStorage)??exampleLevel(),notice:''};}catch(error){return {level:exampleLevel(),notice:`Сохранение не загружено: ${message(error)}`};}}
-function message(error:unknown){return error instanceof Error?error.message:String(error);}
-export function App(){
-  const [initial]=useState(initialProject);
-  const [level,setLevel]=useState<Level>(initial.level);
-  const [notice,setNotice]=useState(initial.notice);
-  const [selected,setSelected]=useState<string|null>(null);
-  const [focusNodeId,setFocusNodeId]=useState<string|null>(null);
-  const [addType,setAddType]=useState<NodeKind>('blank');
-  const [graphRevision,setGraphRevision]=useState(0);
-  const [tab,setTab]=useState<'graph'|'map'>('graph');
-  const [checked,setChecked]=useState(false);
-  const [run,setRun]=useState<{core:FactoryCore;level:Level;test:boolean}|null>(null);
-  const importInput=useRef<HTMLInputElement>(null);
-  const flow=useRef<ReactFlowInstance<FlowNode,Edge>|null>(null);
-  const errors=useMemo(()=>validateLevel(level),[level]);
-  const node=level.nodes.find(n=>n.id===selected);
-  const setFlowInstance=useCallback((instance:ReactFlowInstance<FlowNode,Edge>|null)=>{flow.current=instance;},[]);
-  function addNode(type:NodeKind,position?:{x:number;y:number}){
-    const bounds=document.querySelector('.flow-host')?.getBoundingClientRect();
-    const center=bounds&&tab==='graph'&&flow.current?flow.current.screenToFlowPosition({x:bounds.left+bounds.width/2,y:bounds.top+bounds.height/2}):{x:315,y:240};
-    const desired=position??{x:center.x-115,y:center.y-70};
-    const id=crypto.randomUUID();
-    setLevel(current=>addEditorNode(current,type,id,desired));
-    setSelected(id);setFocusNodeId(id);setTab('graph');setNotice(`Добавлена нода «${registry[type].title}». Настройте параметры справа и соедините порты.`);
+const EditorApp = lazy(() => import('./Editor').then(module => ({ default: module.EditorApp })));
+
+interface ResultState { data: ResultData; olympiad: boolean; retry?: () => void; nextHash?: string; backHash: string; backLabel: string }
+
+const storage = (): Storage | null => { try { return localStorage; } catch { return null; } };
+
+const NAV: { key: string; hash: string; icon: IconName; label: string }[] = [
+  { key: 'hub', hash: '#/hub', icon: 'hub', label: 'Хаб' },
+  { key: 'map', hash: '#/map', icon: 'map', label: 'Карта' },
+  { key: 'olympiads', hash: '#/olympiads', icon: 'trophy', label: 'Олимпиады' },
+  { key: 'profile', hash: '#/profile', icon: 'user', label: 'Профиль' },
+  { key: 'editor', hash: '#/editor', icon: 'editor', label: 'Редактор' },
+];
+
+const TITLES: Record<string, string> = { hub: 'Хаб', map: 'Карта миссий', olympiads: 'Олимпиады', profile: 'Профиль', editor: 'Редактор заданий', mission: 'Миссия', olympiad: 'Олимпиада', result: 'Результат' };
+
+export function App() {
+  const route = useRoute();
+  const [profile, setProfile] = useState<Profile>(() => { const s = storage(); return s ? loadProfile(s) : defaultProfile(); });
+  const profileRef = useRef(profile);
+  const [result, setResult] = useState<ResultState | null>(null);
+  const [attempt, setAttempt] = useState(0);
+
+  const commit = useCallback((next: Profile) => {
+    profileRef.current = next;
+    setProfile(next);
+    const s = storage();
+    if (s) saveProfile(s, next);
+  }, []);
+
+  const motion = profile.settings.motion;
+  useEffect(() => {
+    applyMotionSetting(motion);
+    if (motion !== 'system' || typeof matchMedia !== 'function') return;
+    const query = matchMedia('(prefers-reduced-motion: reduce)');
+    const onChange = () => applyMotionSetting('system');
+    query.addEventListener('change', onChange);
+    return () => query.removeEventListener('change', onChange);
+  }, [motion]);
+
+  const section = route[0] ?? 'hub';
+  useEffect(() => { document.title = `${TITLES[section] ?? 'Учебный завод'} · Учебный завод`; }, [section]);
+  useEffect(() => { if (!route.length) navigate('#/hub'); }, [route.length]);
+
+  const setMotion = (value: MotionSetting) => commit({ ...profileRef.current, settings: { ...profileRef.current.settings, motion: value } });
+
+  /* ---------- завершение попыток ---------- */
+  const nextMissionAfter = (p: Profile, currentId: string) => {
+    const idx = MISSIONS.findIndex(m => m.id === currentId);
+    const ordered = [...MISSIONS.slice(idx + 1), ...MISSIONS.slice(0, idx + 1)];
+    return ordered.find(m => m.id !== currentId && !isPassed(p, m.id) && missionStatus(p, m) !== 'locked') ?? null;
+  };
+  const buildResult = (session: MissionSession, res: AttemptResult, before: Profile, extra: Pick<ResultData, 'kind' | 'title' | 'next' | 'nextLabel'>): ResultData => {
+    const summary = session.summary();
+    return {
+      ...extra, ended: session.ended ?? 'abandoned', score: computeScore(summary), summary,
+      xpGained: res.xpGained, xpBefore: before.xp, xpAfter: res.profile.xp, levelBefore: res.levelBefore, levelAfter: res.levelAfter,
+      newAchievements: res.newAchievements, previousBest: res.previousBest, improved: res.improved, protocol: [...session.protocol], errors: [...session.errors],
+    };
+  };
+
+  const finishMission = (session: MissionSession, id: string) => {
+    const mission = missionById(id)!;
+    const before = profileRef.current;
+    const summary = session.summary();
+    const res = applyMissionAttempt(before, id, summary, computeScore(summary), session.opsTotal);
+    commit(res.profile);
+    const next = nextMissionAfter(res.profile, id);
+    setResult({
+      data: buildResult(session, res, before, { kind: 'mission', title: mission.title, next: next ? { id: next.id, title: next.title } : null, nextLabel: 'Следующая миссия' }),
+      olympiad: false,
+      retry: () => { setAttempt(a => a + 1); navigate(`#/mission/${id}`); },
+      nextHash: next ? `#/mission/${next.id}` : undefined,
+      backHash: `#/map/${id}`, backLabel: 'К карте миссий',
+    });
+    navigate('#/result');
+  };
+
+  const finishStage = (session: MissionSession, oid: string, sid: string) => {
+    const olympiad = olympiadById(oid)!;
+    const index = olympiad.stages.findIndex(s => s.id === sid);
+    const stage = olympiad.stages[index];
+    const before = profileRef.current;
+    const summary = session.summary();
+    const res = applyStageAttempt(before, stageKey(oid, sid), stage.title, summary, computeScore(summary), session.opsTotal);
+    commit(res.profile);
+    const following = olympiad.stages[index + 1];
+    setResult({
+      data: buildResult(session, res, before, { kind: 'stage', title: `${olympiad.title}: ${stage.title}`, next: following ? { id: following.id, title: following.title } : null, nextLabel: 'Следующий этап' }),
+      olympiad: true,
+      nextHash: following ? `#/olympiad/${oid}/${following.id}` : undefined,
+      backHash: '#/olympiads', backLabel: 'К олимпиадам',
+    });
+    navigate('#/result');
+  };
+
+  /* ---------- маршруты ---------- */
+  let content;
+  let fullscreen = false;
+  switch (section) {
+    case 'hub': content = <Hub profile={profile} />; break;
+    case 'map': content = <MissionMap key={route[1] ?? 'map'} profile={profile} focus={route[1]} />; break;
+    case 'olympiads': content = <Olympiads profile={profile} />; break;
+    case 'profile': content = <ProfileScreen profile={profile} onName={name => commit({ ...profileRef.current, name })} onMotion={setMotion} onReset={() => { commit(defaultProfile()); setResult(null); }} />; break;
+    case 'editor': content = <Suspense fallback={<div className="scene-loading" role="status">Загрузка редактора…</div>}><EditorApp /></Suspense>; break;
+    case 'mission':
+      fullscreen = true;
+      content = <MissionPlay id={route[1] ?? ''} attempt={attempt} profile={profile} motion={motion} onMotion={setMotion}
+        onStarted={id => commit(markStarted(profileRef.current, id))} onFinished={finishMission} />;
+      break;
+    case 'olympiad':
+      fullscreen = true;
+      content = <StagePlay oid={route[1] ?? ''} sid={route[2] ?? ''} profile={profile} motion={motion} onMotion={setMotion}
+        onStarted={key => commit(markStageStarted(profileRef.current, key))} onFinished={finishStage} />;
+      break;
+    case 'result':
+      fullscreen = true;
+      content = result ? (
+        <ResultScreen result={result.data} olympiad={result.olympiad} onRetry={result.retry} onNext={result.nextHash ? () => navigate(result.nextHash!) : undefined} onBack={() => navigate(result.backHash)} backLabel={result.backLabel} />
+      ) : <Redirect to="#/hub" />;
+      break;
+    default: content = <Redirect to="#/hub" />;
   }
-  function start(test:boolean){setChecked(true);if(errors.length){setNotice('Исправьте ошибки перед запуском.');return;}try{const snapshot=structuredClone(level);setRun({core:new FactoryCore(compileLevel(snapshot)),level:snapshot,test});setNotice('');}catch(error){setNotice(message(error));}}
-  function focusIssue(issue:Issue){if(!issue.nodeId)return;setSelected(issue.nodeId);setTab('graph');const n=level.nodes.find(n=>n.id===issue.nodeId);if(n)flow.current?.setCenter(n.position.x+115,n.position.y+60,{zoom:1,duration:300});}
-  function replace(next:Level){setLevel(next);setSelected(null);setFocusNodeId(null);setGraphRevision(value=>value+1);setTab('graph');setChecked(false);setNotice('');}
-  function exportJSON(){
-    const url=URL.createObjectURL(new Blob([serializeLevel(level)],{type:'application/json'}));
-    const a=document.createElement('a');a.href=url;a.download=`${level.id.replace(/[^a-zA-Z0-9_-]/g,'_')}.json`;a.click();URL.revokeObjectURL(url);setNotice('JSON экспортирован.');
-  }
-  function updateParameter(key:string,value:string|number){if(!node)return;setLevel({...level,nodes:level.nodes.map(n=>n.id===node.id?{...n,params:{...n.params,[key]:value}}:n)});}
-  if(run)return <Player core={run.core} level={run.level} test={run.test} onExit={()=>{run.core.dispose();setRun(null);}} />;
-  return <main className="admin-app">
-    <header className="app-header"><div className="brand"><span className="brand-icon">▧</span><div><h1>Мастерская уровней</h1><p>Учебный завод · локальный прототип</p></div></div><div className="mode-tabs"><button className="active">Администратор</button><button onClick={()=>start(false)}>Игрок ↗</button></div></header>
-    <div className="toolbar"><input className="level-name" aria-label="Название уровня" value={level.name} onChange={e=>setLevel({...level,name:e.target.value})} /><div className="toolbar-actions">
-      <button onClick={()=>replace(emptyLevel())}>Новый уровень</button><button onClick={()=>replace(exampleLevel())}>Пример</button><button onClick={()=>replace(welcomeLevel())}>Приветствие</button><button onClick={()=>replace(twoOperationsLevel())}>2 операции</button><div className="add-node-control"><select aria-label="Тип новой ноды" value={addType} onChange={e=>setAddType(e.target.value as NodeKind)}>{NODE_TYPES.map(type=><option key={type} value={type}>{registry[type].title}</option>)}</select><button onClick={()=>addNode(addType)}>+ Добавить ноду</button></div>
-      <button onClick={()=>{try{saveDraft(localStorage,level);setNotice(errors.length?'Черновик сохранён. Можно продолжить создание после перезагрузки.':'Уровень сохранён в этом браузере.');}catch(e){setChecked(true);setNotice(`Не удалось сохранить: ${message(e)}`);}}}>Сохранить</button>
-      <button onClick={exportJSON}>Экспорт JSON</button><button onClick={()=>importInput.current?.click()}>Импорт JSON</button>
-      <button onClick={()=>{setChecked(true);setNotice(errors.length?`Найдено ошибок: ${errors.length}`:'Уровень корректен. Можно запускать.');}}>Проверить</button><button className="primary" onClick={()=>start(true)}>▶ Протестировать</button>
-    </div><input hidden ref={importInput} type="file" accept="application/json,.json" onChange={async e=>{const file=e.target.files?.[0];e.target.value='';if(!file)return;try{if(file.size>1_000_000)throw new Error('Максимальный размер файла — 1 МБ.');const next=parseLevel(await file.text());replace(next);setNotice('Уровень импортирован.');}catch(error){setNotice(`Импорт отклонён. Текущий уровень сохранён. ${message(error)}`);}}} /></div>
-    {notice&&<div className="notice" role="status"><span>{notice}</span><button aria-label="Закрыть сообщение" onClick={()=>setNotice('')}>×</button></div>}
-    <div className="editor-layout">
-      <aside className="library"><h2>Библиотека нод</h2><p className="muted">Нажмите «+» или перетащите тип в граф</p>
-        {NODE_TYPES.map(type=><button className="library-item" key={type} draggable onDragStart={event=>{event.dataTransfer.setData('application/x-factory-node',type);event.dataTransfer.effectAllowed='copy';}} onClick={()=>addNode(type)}><span className={`type-icon ${registry[type].inputs.some(p=>p.type==='execution')||type==='start'?'gold':''}`}>{type==='start'?'▶':'◇'}</span><span>{registry[type].title}</span><span className="plus">+</span></button>)}
-        {tab==='map'&&<section className="map-library"><h2>Объекты карты</h2><p className="muted">Выберите объект, затем свободную клетку</p>{level.nodes.filter(n=>['blank','lathe','warehouse'].includes(n.type)).map(n=>{
-          const placement=level.placements.find(p=>p.nodeId===n.id);
-          return <button key={n.id} className={`map-object ${selected===n.id?'active':''}`} onClick={()=>setSelected(n.id)}><strong>{String(n.params.name)}</strong><small>{placement?`Клетка ${placement.x+1}, ${placement.y+1}`:'Не размещён'}</small></button>;
-        })}</section>}
-        <div className="library-help"><strong>Два вида связей</strong><p><i className="line gold" /> Выполнение: порядок шагов</p><p><i className="line blue" /> Данные: ссылки на объекты</p><small>Связи не перемещают предметы. Все действия выполняет игрок.</small></div>
-      </aside>
-      <section className="editor-workspace"><div className="workspace-tabs"><button className={tab==='graph'?'active':''} onClick={()=>setTab('graph')}>Граф сценария</button><button className={tab==='map'?'active':''} onClick={()=>setTab('map')}>Карта</button>{tab==='graph'&&<button onClick={()=>{void flow.current?.fitView({padding:.15,duration:250});}}>Показать все ноды</button>}<span>{tab==='graph'?`${level.nodes.length} нод · ${level.edges.length} связей · тяните за заголовок`:'Одна клетка — один объект'}</span></div>
-      {tab==='graph'?<GraphEditor key={`${level.id}:${graphRevision}`} level={level} selected={selected} focusNodeId={focusNodeId} setLevel={setLevel} setSelected={setSelected} onInit={setFlowInstance} onAdd={addNode} onNotice={setNotice}/>
-:<div className="map-host"><Suspense fallback={<SceneLoading/>}><Workshop level={level} selected={selected} onCell={(x,y)=>{
-        if(!node||!['blank','lathe','warehouse'].includes(node.type)){setNotice('Выберите заготовку, станок или склад слева.');return;}
-        const next=placeObject(level,node.id,x,y);if(next){setLevel(next);setNotice('');}else setNotice('Клетка занята или находится за границами карты.');
-      }}/></Suspense><div className="map-caption">Клетки нумеруются с 1. Позиции объектов независимы от позиций нод.</div></div>}
-      {checked&&<div className={`validation-panel ${errors.length?'invalid':'valid'}`}><strong>{errors.length?`Ошибки уровня (${errors.length})`:'✓ Уровень корректен'}</strong>{errors.map((issue,i)=><button key={i} onClick={()=>focusIssue(issue)}><b>{level.nodes.find(n=>n.id===issue.nodeId)?.params.name??(issue.nodeId?registry[level.nodes.find(n=>n.id===issue.nodeId)?.type??'start'].title:'Уровень')}</b> · {issue.message}</button>)}</div>}
-      </section>
-      <aside className="properties"><h2>Свойства</h2>{node?<><span className="eyebrow">{registry[node.type].title}</span><code className="node-id">ID: {node.id}</code><div className="size-controls"><strong>Размер ноды</strong>{(['width','height'] as const).map(key=><label key={key}>{key==='width'?'Ширина ноды':'Высота ноды'}<input type="number" min={key==='width'?220:160} max={900} value={node.size?.[key]??(key==='width'?230:200)} onChange={e=>{const size={width:node.size?.width??230,height:node.size?.height??200,[key]:Math.max(key==='width'?220:160,Math.min(900,Number(e.target.value)||200))};setLevel(current=>({...current,nodes:current.nodes.map(n=>n.id===node.id?{...n,size}:n)}));}} /></label>)}</div>{registry[node.type].parameters.map(parameter=><label key={parameter.key}>{parameter.label}{parameter.type==='textarea'?<textarea value={node.params[parameter.key]??''} onChange={e=>updateParameter(parameter.key,e.target.value)} />:parameter.type==='tool'?<select value={node.params[parameter.key]} onChange={e=>updateParameter(parameter.key,e.target.value)}><option value="turning">Проходной токарный резец</option></select>:<input type={parameter.type==='number'?'number':'text'} step="any" value={node.params[parameter.key]??''} onChange={e=>updateParameter(parameter.key,parameter.type==='number'?(e.target.value===''?'':Number(e.target.value)):e.target.value)} />}</label>)}
-        {registry[node.type].parameters.length===0&&<p className="muted">У этой ноды нет параметров.</p>}
-        {['blank','lathe','warehouse'].includes(node.type)&&<div className="placement-info"><strong>Размещение на карте</strong><p>{level.placements.find(p=>p.nodeId===node.id)?(()=>{const p=level.placements.find(p=>p.nodeId===node.id)!;return `Клетка ${p.x+1}, ${p.y+1}`;})():'Объект не размещён'}</p><button onClick={()=>setTab('map')}>Перейти к карте</button><button onClick={()=>setLevel({...level,placements:level.placements.filter(p=>p.nodeId!==node.id)})}>Убрать с карты</button></div>}
-        <button className="danger" onClick={()=>{setLevel(deleteNodes(level,[node.id]));setSelected(null);}}>Удалить ноду</button><p className="muted">Связи и размещение этой ноды будут удалены вместе с ней.</p>
-      </>:<div className="empty-properties"><span>◇</span><p>Выберите ноду, чтобы изменить её параметры.</p></div>}
-      {tab==='map'&&<div className="grid-properties"><h3>Сетка карты</h3>{(['width','height'] as const).map(k=><label key={k}>{k==='width'?'Ширина':'Высота'}<input type="number" min={1} max={8} value={level.grid[k]} onChange={e=>setLevel({...level,grid:{...level.grid,[k]:Math.max(1,Math.min(8,Math.trunc(Number(e.target.value)||1)))}})} /></label>)}</div>}
-      </aside>
-    </div><div className="editor-footer">Первая версия: один стол, один станок, один склад · последовательный сценарий · без сервера</div>
-  </main>;
-}
-function Player({core,level,test,onExit}:{core:FactoryCore;level:Level;test:boolean;onExit:()=>void}){
-  const [,refresh]=useReducer(x=>x+1,0);const update=useCallback(()=>refresh(),[]);
-  useEffect(()=>()=>core.dispose(),[core]);
-  const s=core.state;
-  if(core.isWelcome)return <WelcomePlayer core={core} level={level} test={test} onExit={onExit} update={update}/>;
-  const op=core.currentOperation;
-  const active=level.nodes.find(n=>n.id===s.activeNodeId);
-  const selectedName=s.selected===core.resources.blank.id?(s.stage==='finished'?'Готовый валик':core.resources.blank.name):s.selected===core.resources.machine.id?core.resources.machine.name:s.selected===core.resources.warehouse.id?core.resources.warehouse.name:'Выберите объект';
-  function command(c:Command){core.command(c);refresh();}
-  return <main className="player-app"><header className="app-header"><div className="brand"><span className="brand-icon">▧</span><div><h1>{level.name}</h1><p>{test?'Тестирование уровня · отдельный запуск':'Учебный завод · режим игрока'}</p></div></div><div className="player-header-actions"><button onClick={()=>{core.reset();refresh();}}>Начать заново</button><button onClick={onExit}>{test?'← Вернуться в редактор':'← Администратор'}</button></div></header>
-    <div className="player-layout"><section className="player-workshop"><div className="scene-top"><span>ИЗОМЕТРИЧЕСКИЙ ЦЕХ</span><span>Стол → станок → склад</span></div><Suspense fallback={<SceneLoading/>}><Workshop level={level} core={core} onUpdate={update}/></Suspense><div className="scene-bottom">Выбранный объект подсвечивается золотым. Цель перемещения — голубым.</div></section><aside className="player-panel"><span className="eyebrow">ТЕКУЩАЯ ЦЕЛЬ</span><h2>{s.goal||'Подготовка к работе'}</h2><p>{s.instruction||'Познакомьтесь с задачей во вступлении.'}</p><div className="next-action" role="status" aria-live="polite"><span>СЛЕДУЮЩЕЕ ДЕЙСТВИЕ</span><p>{core.hint}</p></div><div className="selection-panel"><h3>{selectedName}</h3>
-      {s.selected===core.resources.blank.id&&<p className="dimensions">{core.resources.blank.material} · Ø{core.resources.blank.diameter} × {core.resources.blank.length} мм{s.stage==='finished'&&<><br/>Участок: Ø{op.diameter} × {op.length} мм</>}</p>}
-      {s.selected===core.resources.machine.id&&<p className="dimensions">{core.resources.tool.name}<br/>Результат: Ø{op.diameter} × {op.length} мм<br/>Длительность: {op.seconds} с</p>}
-      <button className="primary" disabled={!core.can('install')} onClick={()=>command('install')}>Установить в станок</button>
-      <button className="primary" disabled={!core.can('process')} onClick={()=>command('process')}>Обработать {s.operationIndex+1} / {core.resources.operations.length}</button>
-      <button className="primary" disabled={!core.can('store')} onClick={()=>command('store')}>Отправить на склад</button>
-      {s.target&&<button onClick={()=>command('cancel')}>Отменить выбор цели</button>}
-    </div><div className="processing"><div><span>Обработка</span><b>{Math.floor(s.elapsed/(op.seconds*1000)*100)}%</b></div><div className="progress" role="progressbar" aria-label="Прогресс обработки" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.floor(s.elapsed/(op.seconds*1000)*100)}><i style={{width:`${s.elapsed/(op.seconds*1000)*100}%`}} /></div></div><div className="warehouse-count"><span>{core.resources.warehouse.name}<small>Готовые детали</small></span><strong>{s.count}<small> / {core.resources.warehouse.capacity}</small></strong></div>
-    {s.completed&&<div className="success" role="status"><strong>✓ Задание выполнено</strong><p>{s.success}</p><button onClick={()=>{core.reset();refresh();}}>Пройти ещё раз</button></div>}
-    </aside></div>
-    {test&&<section className="debug-panel"><div><span className="eyebrow">АКТИВНАЯ НОДА</span><strong>{active?registry[active.type].title:'—'}</strong><code>{s.activeNodeId}</code></div><div className="event-log"><h3>Журнал событий</h3>{core.log.map(event=><p key={event.sequence}><span>{String(event.sequence).padStart(2,'0')}</span>{event.message}</p>)}</div></section>}
-    {s.intro&&<div className="modal-backdrop"><section className="intro-modal" role="dialog" aria-modal="true" aria-labelledby="intro-title"><span className="eyebrow">ПРАКТИКУМ · ПЕРВЫЙ ПРОИЗВОДСТВЕННЫЙ ЦИКЛ</span><h2 id="intro-title">{String(active?.params.title)}</h2><p>{String(active?.params.text)}</p><div className="intro-spec">Заготовка: Ø{core.resources.blank.diameter} × {core.resources.blank.length} мм<br/>Обработка: Ø{op.diameter} на участке {op.length} мм · {op.seconds} с</div><button className="primary" autoFocus onClick={()=>command('start')}>Начать →</button></section></div>}
-  </main>;
+
+  if (fullscreen) return <>{content}</>;
+  return (
+    <div className="shell">
+      <a className="skip-link" href="#content" onClick={event => { event.preventDefault(); document.getElementById('content')?.focus(); }}>К содержимому</a>
+      <nav className="rail" aria-label="Основная навигация">
+        <a className="rail__brand" href="#/hub" aria-label="Учебный завод: на хаб">
+          <svg viewBox="0 0 32 32" width="34" height="34" aria-hidden="true"><path d="M16 2.5 27.7 9.25v13.5L16 29.5 4.3 22.75V9.25z" fill="none" stroke="currentColor" strokeWidth="2" /><circle cx="16" cy="16" r="4.6" fill="none" stroke="currentColor" strokeWidth="2" /><path d="M16 2.5v6.2M27.7 22.75l-5.4-3.1M4.3 22.75l5.4-3.1" stroke="currentColor" strokeWidth="2" /></svg>
+          <span>Учебный<br />завод</span>
+        </a>
+        <ul>
+          {NAV.map(item => (
+            <li key={item.key}>
+              <a href={item.hash} className="rail__link" aria-current={section === item.key ? 'page' : undefined}><Icon name={item.icon} size={22} /><span>{item.label}</span></a>
+            </li>
+          ))}
+        </ul>
+      </nav>
+      <div className="shell__content" id="content" tabIndex={-1}>{content}</div>
+    </div>
+  );
 }
 
-function WelcomePlayer({core,level,test,onExit,update}:{core:FactoryCore;level:Level;test:boolean;onExit:()=>void;update:()=>void}){
- const s=core.state,active=level.nodes.find(n=>n.id===s.activeNodeId);
- return <main className="player-app"><header className="app-header"><h1>{level.name}</h1><div><button onClick={()=>{core.reset();update();}}>Начать заново</button><button onClick={onExit}>← Вернуться в редактор</button></div></header><section className="welcome-player"><span className="eyebrow">ЗНАКОМСТВО</span><h2>{s.completed?'Готово':String(active?.params.title??level.name)}</h2><p>{s.completed?s.success:String(active?.params.text??'')}</p>{s.intro&&<button className="primary" onClick={()=>{core.command('start');update();}}>Начать →</button>}{s.completed&&<button onClick={()=>{core.reset();update();}}>Пройти ещё раз</button>}</section>{test&&<section className="debug-panel"><div>Активная нода: {active?registry[active.type].title:'—'}</div><div>{core.log.map(event=><p key={event.sequence}>{event.message}</p>)}</div></section>}</main>;
+function Redirect({ to }: { to: string }) {
+  useEffect(() => { navigate(to); }, [to]);
+  return null;
+}
+
+function Blocked({ title, text, backHash, backLabel }: { title: string; text: string; backHash: string; backLabel: string }) {
+  return (
+    <main className="mission mission--error"><div className="center-card surface"><Icon name="lock" size={28} /><h1 className="t-h2">{title}</h1><p className="t-dim">{text}</p><Button variant="primary" onClick={() => navigate(backHash)}>{backLabel}</Button></div></main>
+  );
+}
+
+interface PlayCommon { profile: Profile; motion: MotionSetting; onMotion: (m: MotionSetting) => void }
+
+function MissionPlay({ id, attempt, profile, motion, onMotion, onStarted, onFinished }: PlayCommon & { id: string; attempt: number; onStarted: (id: string) => void; onFinished: (session: MissionSession, id: string) => void }) {
+  const mission = missionById(id);
+  const level = useMemo(() => mission?.build(), [mission, attempt]);
+  // Доступность проверяется один раз при входе: прогресс внутри попытки её не прерывает.
+  const [gate] = useState(() => (mission ? lockReason(profile, mission) : 'Такой миссии нет.'));
+  if (!mission || !level) return <Blocked title="Миссия не найдена" text="Выберите задание на карте миссий." backHash="#/map" backLabel="К карте миссий" />;
+  if (gate) return <Blocked title="Миссия закрыта" text={gate} backHash="#/map" backLabel="К карте миссий" />;
+  const direction = DIRECTIONS.find(d => d.id === mission.direction)?.title ?? '';
+  return (
+    <MissionScreen key={`${id}:${attempt}`} level={level} mode="training" title={mission.title} eyebrow={`Миссия ${MISSIONS.indexOf(mission) + 1} · ${direction}`}
+      motion={motion} onMotion={onMotion} onStarted={() => onStarted(id)} onExit={() => navigate(`#/map/${id}`)} onFinished={session => onFinished(session, id)} />
+  );
+}
+
+function StagePlay({ oid, sid, profile, motion, onMotion, onStarted, onFinished }: PlayCommon & { oid: string; sid: string; onStarted: (key: string) => void; onFinished: (session: MissionSession, oid: string, sid: string) => void }) {
+  const olympiad = olympiadById(oid);
+  const index = olympiad ? olympiad.stages.findIndex(s => s.id === sid) : -1;
+  const stage = olympiad && index >= 0 ? olympiad.stages[index] : undefined;
+  const level = useMemo(() => stage?.build(), [stage]);
+  const [gate] = useState(() => (!olympiad || !stage ? 'Такого этапа нет.' : (() => { const st = stageState(profile, olympiad, index); return st.kind === 'ready' ? '' : st.kind === 'locked' ? st.reason : 'Попытка на этом этапе уже использована.'; })()));
+  if (!olympiad || !stage || !level) return <Blocked title="Этап не найден" text="Выберите этап на странице олимпиад." backHash="#/olympiads" backLabel="К олимпиадам" />;
+  if (gate) return <Blocked title="Этап недоступен" text={gate} backHash="#/olympiads" backLabel="К олимпиадам" />;
+  return (
+    <MissionScreen key={`${oid}:${sid}`} level={level} mode="olympiad" title={stage.title} eyebrow={`Олимпиада «${olympiad.title}» · этап ${index + 1} из ${olympiad.stages.length}`} timeLimitSec={stage.timeLimitSec}
+      motion={motion} onMotion={onMotion} onStarted={() => onStarted(stageKey(oid, sid))} onExit={() => navigate('#/olympiads')} onFinished={session => onFinished(session, oid, sid)} />
+  );
 }

@@ -1,0 +1,29 @@
+/* Игровая сцена и подписи объектов */
+[hidden] { display: none !important; }
+.workshop-canvas {
+  position: absolute; inset: 0; overflow: hidden; touch-action: none; user-select: none;
+  background:
+    radial-gradient(ellipse 70% 60% at 50% 46%, color-mix(in srgb, var(--ink-700) 70%, transparent) 0%, transparent 70%),
+    linear-gradient(180deg, #0d1522 0%, #0a101b 100%);
+}
+.workshop-canvas canvas { display: block; outline: none; }
+.scene-labels { position: absolute; inset: 0; overflow: hidden; pointer-events: none; z-index: 2; }
+.scene-tag {
+  position: absolute; left: 0; top: 0; display: grid; gap: 1px; justify-items: center; padding: 6px 11px 7px;
+  border-radius: 10px; background: rgba(11, 17, 28, 0.8); border: 1px solid rgba(152, 168, 196, 0.3);
+  backdrop-filter: blur(6px); color: var(--text); font-size: 13px; font-weight: 650; line-height: 1.2; white-space: nowrap;
+  box-shadow: 0 8px 18px rgba(3, 7, 14, 0.5); will-change: transform; transition: border-color var(--dur-1), background var(--dur-1);
+}
+.scene-tag::after {
+  content: ''; position: absolute; left: 50%; bottom: -5px; width: 8px; height: 8px; background: rgba(11, 17, 28, 0.9);
+  border-right: 1px solid rgba(152, 168, 196, 0.3); border-bottom: 1px solid rgba(152, 168, 196, 0.3); transform: translateX(-50%) rotate(45deg);
+}
+.scene-tag__sub { font-weight: 500; font-size: 12px; color: var(--ink-300); }
+.scene-tag[data-tone='run'] { border-color: color-mix(in srgb, var(--process) 70%, transparent); }
+.scene-tag[data-tone='run'] .scene-tag__sub { color: var(--process-strong); }
+.scene-tag[data-tone='ok'] { border-color: color-mix(in srgb, var(--ok) 70%, transparent); }
+.scene-tag[data-tone='ok'] .scene-tag__sub { color: var(--ok-strong); }
+.scene-tag[data-tone='ready'] .scene-tag__sub { color: var(--accent-strong); }
+.scene-tag.is-hover { border-color: var(--accent); background: rgba(14, 30, 36, 0.9); }
+.scene-tag__bar { display: block; width: 100%; min-width: 110px; height: 4px; margin-top: 4px; border-radius: 99px; background: rgba(255, 255, 255, 0.14); overflow: hidden; }
+.scene-tag__bar b { display: block; height: 100%; background: var(--process); }
