@@ -38,7 +38,7 @@ Object.defineProperty(globalThis,'ResizeObserver',{value:ResizeObserverMock,conf
 Object.defineProperty(dom.window,'ResizeObserver',{value:ResizeObserverMock});
 const {createElement}=await import('react');
 const {render,fireEvent,waitFor,cleanup,act}=await import('@testing-library/react');
-const {App}=await import('../src/App');
+const {EditorApp:App}=await import('../src/Editor');
 afterEach(()=>{cleanup();localStorage.clear();});
 async function settle(){await act(async()=>{await new Promise(resolve=>setTimeout(resolve,60));});}
 

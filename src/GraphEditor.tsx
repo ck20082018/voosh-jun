@@ -3,6 +3,7 @@ import {ReactFlow,applyNodeChanges,NodeResizer,Panel,Background,Controls,MiniMap
 import {NODE_TYPES,registry,nodePorts,portsCompatible,operations,type Level,type NodeKind} from './level';
 import {groupNodes} from './groups';
 import {ConnectionBuilder} from './ConnectionBuilder';
+import {Icon} from './ui/Icon';
 import {connectionIssue,addLevelConnection,type ConnectionDefinition} from './connections';
 import {reconcileEditorNodes,reconcileEdges,updateLevelFromFlow,prepareEditorDeletion,type FlowNode,type FrameNode,type EditorNode} from './editorFlow';
 
@@ -21,7 +22,7 @@ function FactoryNode({id,data,selected,positionAbsoluteX,positionAbsoluteY}:Node
   // Port bounds must be re-read after content/layout changes and at new positions.
   useLayoutEffect(()=>{updateInternals(id);},[id,n.params,n.size,n.type,context.level.productionMode,positionAbsoluteX,positionAbsoluteY,updateInternals]);
   return <div className={`factory-node ${selected?'chosen':''} ${['start','intro','task','wait','check','finish','hint'].includes(n.type)?'scenario-node':''}`}>
-    <NodeResizer onResizeStart={()=>context.begin?.()} onResizeEnd={()=>context.end?.()} isVisible={selected} minWidth={220} minHeight={160} maxWidth={900} maxHeight={900}/><div className="node-heading" title="Перетащите за заголовок"><span className="node-dot" />{d.title}<span className="drag-grip">⠿</span></div><p>{d.description}</p>
+    <NodeResizer onResizeStart={()=>context.begin?.()} onResizeEnd={()=>context.end?.()} isVisible={selected} minWidth={220} minHeight={160} maxWidth={900} maxHeight={900}/><div className="node-heading" title="Перетащите за заголовок"><span className="node-dot" />{d.title}<span className="drag-grip" aria-hidden="true"><Icon name="move" size={14}/></span></div><p>{d.description}</p>
     <div className="ports"><div>{nodePorts(n,context.level).inputs.map(p=><PortRow key={p.id} nodeId={id} port={p} output={false}/>)}</div><div>{nodePorts(n,context.level).outputs.map(p=><PortRow key={p.id} nodeId={id} port={p} output/>)}</div></div>
     {typeof n.params.name==='string'&&<div className="node-summary">{n.params.name}</div>}
     {n.type==='intro'&&<div className="node-summary">{String(n.params.title)}</div>}

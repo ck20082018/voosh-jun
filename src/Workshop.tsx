@@ -1,52 +1,98 @@
-import {useCallback,useEffect,useRef} from 'react';
+import { useEffect, useRef, useMemo, useState, type MutableRefObject } from 'react';
 import Phaser from 'phaser';
-import {locatedPlacements,type Level} from './level';
-import type {FactoryCore} from './core';
-import {WorkshopDrawing,projectCell} from './presentation/workshopDrawing';
-import {WorkshopInteractions} from './WorkshopInteractions';
-import {WORKSHOP_WIDTH,WORKSHOP_HEIGHT,type PartPose} from './presentation/workshopGeometry';
-interface WorkshopProps {level:Level;core?:FactoryCore;selected?:string|null;onCell?:(x:number,y:number)=>void;onUpdate?:()=>void}
-export function Workshop({level,core,selected,onCell,onUpdate}:WorkshopProps){
-  const host=useRef<HTMLDivElement>(null);
-  const draggedPart=useRef<PartPose|null>(null);
-  const callbacks=useRef({onCell,onUpdate});callbacks.current={onCell,onUpdate};
-  const notify=useCallback(()=>callbacks.current.onUpdate?.(),[]);
-  const dragChanged=useCallback((pose:PartPose|null)=>{draggedPart.current=pose;},[]);
-  useEffect(()=>{
-    if(!host.current)return;
-    class WorkshopScene extends Phaser.Scene {
-      private drawing!:WorkshopDrawing;
-      private phase=0;private notifyAt=0;
-      private center=projectCell;
-      create(){
-        this.drawing=new WorkshopDrawing(this.add.graphics());
-        if(!core){
-          for(let y=0;y<level.grid.height;y++)for(let x=0;x<level.grid.width;x++){
-            const c=this.center(x,y);
-            this.add.zone(c.x,c.y,116,60).setInteractive(new Phaser.Geom.Polygon([58,0,116,30,58,60,0,30]),Phaser.Geom.Polygon.Contains).on('pointerdown',()=>callbacks.current.onCell?.(x,y));
-          }
-        }
-        for(const p of locatedPlacements(level)){
-          const n=level.nodes.find(n=>n.id===p.nodeId);if(!n)continue;
-          const c=this.center(p.x,p.y);
-          this.add.text(c.x,c.y+42,String(n.params.name),{fontFamily:'Arial',fontSize:'14px',color:'#36554a',backgroundColor:'#edf2e8',padding:{x:5,y:3}}).setOrigin(.5).setDepth(10);
-        }
-        this.draw();
-      }
-      update(time:number,delta:number){
-        if(core){core.tick(delta);this.phase+=delta/140;this.draw();if(time-this.notifyAt>80){this.notifyAt=time;callbacks.current.onUpdate?.();}}
-      }
-      private draw(){
-        const state=core?.state;
-        this.drawing.render({
-          grid:level.grid,placements:locatedPlacements(level),nodes:level.nodes.map(n=>({id:n.id,type:n.type,shape:String(n.params.shape??''),length:Number(n.params.length),diameter:Number(n.params.diameter),width:Number(n.params.width),height:Number(n.params.height),machineKind:String(n.params.kind??'')})),selected:selected??null,draggedPart:draggedPart.current,
-          production:core&&state?{stage:state.stage,selected:state.selected,target:state.target,
-            blank:core.resources.blank,part:state.part,location:state.location,targetIds:core.targetIds,machines:state.machines,warehouses:state.warehouses}:undefined,
-        },this.phase);
-      }
-    }
-    const game=new Phaser.Game({type:Phaser.AUTO,parent:host.current,width:WORKSHOP_WIDTH,height:WORKSHOP_HEIGHT,backgroundColor:'#f1f5eb',scene:WorkshopScene,scale:{mode:Phaser.Scale.FIT,autoCenter:Phaser.Scale.CENTER_BOTH},audio:{noAudio:true}});
-    return()=>{draggedPart.current=null;game.destroy(true);};
-  },[level,core,selected]);
-  return <div className="workshop-stage"><div className="workshop-canvas" ref={host} aria-label={core?'Изометрический цех':'Карта размещения объектов'} />{core&&<WorkshopInteractions level={level} core={core} onUpdate={notify} onDragChange={dragChanged}/>}</div>;
+import type { FactoryCore } from './core';
+import { MissionSession } from './platform/session';
+import { ObjectPopover, Dock } from './screens/MissionPanels';
+import type { Level } from './level';
+import { WorkshopScene, type Anchor, type Insets, type SceneHooks } from './scene/WorkshopScene';
+
+export type { Anchor, Insets } from './scene/WorkshopScene';
+export interface WorkshopHandle { zoomBy: (factor: number) => void; fit: () => void }
+
+interface WorkshopProps {
+  level: Level;
+  core?: FactoryCore;
+  onUpdate?: () => void;
+  /** Игровой режим: сцена управляется сессией миссии. */
+  session?: MissionSession;
+  /** Режим карты редактора. */
+  selected?: string | null;
+  onCell?: (x: number, y: number) => void;
+  onAnchor?: (anchor: Anchor | null) => void;
+  handle?: MutableRefObject<WorkshopHandle | null>;
+  insets?: Insets;
+  coachHighlights?: boolean;
+}
+
+/** Сигнатура уровня: пересоздаём объекты сцены только когда меняется то, что на ней видно. */
+const worldSignature = (level: Level) => JSON.stringify([level.grid, level.placements, level.nodes.filter(n => ['blank', 'lathe', 'warehouse', 'table'].includes(n.type)).map(n => [n.id, n.type, n.params]), level.edges.filter(e => e.targetHandle === 'previous' || e.targetHandle === 'blank').map(e => [e.source, e.target])]);
+
+export function Workshop({ level, session: suppliedSession, core, onUpdate, selected = null, onCell, onAnchor, handle, insets, coachHighlights = false }: WorkshopProps) {
+  const localSession = useMemo(() => core ? new MissionSession(core, 'test') : undefined, [core]);
+  const session = suppliedSession ?? localSession;
+  const [localAnchor, setLocalAnchor] = useState<Anchor | null>(null);
+  useEffect(() => localSession?.subscribe(() => onUpdate?.()), [localSession, onUpdate]);
+  useEffect(() => () => localSession?.dispose(), [localSession]);
+  const anchorChanged = onAnchor ?? (core ? setLocalAnchor : undefined);
+  const host = useRef<HTMLDivElement>(null);
+  const live = useRef({ session, selected, onCell, onAnchor: anchorChanged, insets: insets ?? { left: 0, right: 0, top: 0, bottom: 0 }, coachHighlights, level });
+  live.current = { session, selected, onCell, onAnchor: anchorChanged, insets: insets ?? { left: 0, right: 0, top: 0, bottom: 0 }, coachHighlights, level };
+  const scene = useRef<WorkshopScene | null>(null);
+  const signature = worldSignature(level);
+
+  useEffect(() => {
+    const el = host.current;
+    if (!el) return;
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    const hooks: SceneHooks = {
+      getRuntime: () => {const s=live.current.session;return s&&!s.core.isWelcome?{state:s.state,resources:s.core.resources,targetIds:s.core.targetIds,progress:s.progress,opsDone:s.opsDone}:undefined;},
+      onTick:delta=>live.current.session?.tick(delta),
+      onSelect:id=>{live.current.session?.click(id);},
+      onBeginDrag:()=>live.current.session?.beginDrag()??null,
+      onFinishDrag:(drag,target)=>{live.current.session?.finishDrag(drag,target);},
+      onCancelDrag:drag=>live.current.session?.cancelDrag(drag),
+      onEvent:listener=>live.current.session?.onEvent(listener)??(()=>{}),
+      getSelected: () => live.current.selected,
+      onCell: (x, y) => live.current.onCell?.(x, y),
+      onAnchor: anchor => live.current.onAnchor?.(anchor),
+      getInsets: () => live.current.insets,
+      getCoachHighlights: () => live.current.coachHighlights,
+    };
+    const sceneInstance = new WorkshopScene();
+    const rect = el.getBoundingClientRect();
+    const game = new Phaser.Game({
+      type: Phaser.AUTO,
+      parent: el,
+      transparent: true,
+      width: Math.max(2, Math.round(rect.width * dpr)),
+      height: Math.max(2, Math.round(rect.height * dpr)),
+      scale: { mode: Phaser.Scale.NONE, zoom: 1 / dpr },
+      audio: { noAudio: true },
+      banner: false,
+      render: { antialias: true, powerPreference: 'high-performance' },
+      scene: [],
+    });
+    game.scene.add('workshop', sceneInstance, true, { hooks, host: el, level: live.current.level, dpr });
+    scene.current = sceneInstance;
+    const observer = new ResizeObserver(entries => {
+      const box = entries[0].contentRect;
+      if (box.width > 0 && box.height > 0) sceneInstance.resize(box.width, box.height);
+    });
+    observer.observe(el);
+    if (handle) handle.current = { zoomBy: factor => sceneInstance.zoomBy(factor), fit: () => sceneInstance.fit() };
+    return () => {
+      observer.disconnect();
+      scene.current = null;
+      if (handle) handle.current = null;
+      game.destroy(true);
+    };
+    // Игра создаётся один раз на сессию/режим; уровень применяется через setLevel.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [session]);
+
+  useEffect(() => { scene.current?.setLevel(live.current.level); }, [signature]);
+  useEffect(() => { scene.current?.fit(); }, [insets?.left, insets?.right, insets?.top, insets?.bottom]);
+
+  const canvas = <div className="workshop-canvas" ref={host} role="img" aria-label={session ? 'Изометрический цех: заготовка, токарный станок, склад' : 'Карта размещения объектов'} />;
+  return core && session ? <div className="workshop-stage">{canvas}<ObjectPopover session={session} anchor={localAnchor} stage={host.current} /><Dock session={session} hintText={null} onHint={()=>{}}/></div> : canvas;
 }
