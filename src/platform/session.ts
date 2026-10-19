@@ -192,7 +192,10 @@ export class MissionSession {
     this.notify();
   }
 
-  dispose() { this.unsubscribeCore?.(); this.unsubscribeCore = null; this.core.dispose(); this.listeners.clear(); this.eventListeners.clear(); }
+  /** Release an adapter around a core owned by its caller (e.g. the editor player). */
+  detach() { this.unsubscribeCore?.(); this.unsubscribeCore = null; this.listeners.clear(); this.eventListeners.clear(); }
+
+  dispose() { this.detach(); this.core.dispose(); }
 
   summary(): AttemptSummary {
     const ops = this.core.isWelcome ? [] : Object.values(this.core.resources.machines).flatMap(m=>m.operations);

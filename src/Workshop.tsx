@@ -32,7 +32,8 @@ export function Workshop({ level, session: suppliedSession, core, onUpdate, sele
   const session = suppliedSession ?? localSession;
   const [localAnchor, setLocalAnchor] = useState<Anchor | null>(null);
   useEffect(() => localSession?.subscribe(() => onUpdate?.()), [localSession, onUpdate]);
-  useEffect(() => () => localSession?.dispose(), [localSession]);
+  // Player owns this core; remounting its scene after reset must not dispose it.
+  useEffect(() => () => localSession?.detach(), [localSession]);
   const anchorChanged = onAnchor ?? (core ? setLocalAnchor : undefined);
   const host = useRef<HTMLDivElement>(null);
   const live = useRef({ session, selected, onCell, onAnchor: anchorChanged, insets: insets ?? { left: 0, right: 0, top: 0, bottom: 0 }, coachHighlights, level });

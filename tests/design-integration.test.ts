@@ -109,6 +109,31 @@ test('cancel, pause and stale gestures preserve the item and cannot start proces
   session.dispose();
 });
 
+test('recreating the editor scene after reset leaves Continue and manufacturing usable',()=>{
+  const core=new FactoryCore(compileLevel(millingLevel()));
+  let adapter=new MissionSession(core,'test');
+  for(let i=0;i<3;i++){
+    assert.ok(core.command('start'));
+    core.reset();
+    let oldNotifications=0;
+    adapter.subscribe(()=>oldNotifications++);
+    adapter.detach();
+    assert.equal(core.state.disposed,false);
+    adapter=new MissionSession(core,'test');
+    assert.ok(core.command('start'),'Continue must work after replacing the scene adapter');
+    assert.equal(core.state.intro,false);
+    assert.equal(oldNotifications,0,'old scene subscribers must be released');
+    if(i<2){core.reset();}
+  }
+  const drag=adapter.beginDrag();assert.ok(drag);
+  assert.ok(adapter.finishDrag(drag,core.resources.machine.id));
+  manufacture(adapter,core.resources.machine.id);
+  const delivery=adapter.beginDrag();assert.ok(delivery);
+  assert.ok(adapter.finishDrag(delivery,core.resources.warehouse.id));
+  assert.equal(adapter.ended,'completed');
+  adapter.dispose();assert.equal(core.state.disposed,true,'owning sessions still dispose their core');
+});
+
 test('new dock exposes every machine and warehouse; geometry reflects actual sections',()=>{
   const session=start(intermediateLevel());
   const html=renderToString(createElement(Dock,{session,hintText:null,onHint:()=>{}}));
