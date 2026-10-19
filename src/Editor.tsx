@@ -55,7 +55,7 @@ export function EditorApp(){
     setLevel(current=>addEditorNode(current,type,id,desired));
     setSelected(id);setFocusNodeId(id);setTab('graph');setNotice(`Добавлена нода «${registry[type].title}». Настройте параметры справа и соедините порты.`);
   }
-  function start(test:boolean){setChecked(true);if(errors.length){setNotice('Исправьте ошибки перед запуском.');return;}try{const snapshot=structuredClone(level);setRun({core:snapshot.productionMode==='player'?new PlanningCore(snapshot):new FactoryCore(compileLevel(snapshot)),level:snapshot,test});setNotice('');}catch(error){setNotice(message(error));}}
+  function start(test:boolean){setChecked(true);if(errors.length){setNotice('Исправьте ошибки перед запуском.');return;}try{const snapshot=structuredClone(level);document.documentElement.scrollTop=0;document.body.scrollTop=0;setRun({core:snapshot.productionMode==='player'?new PlanningCore(snapshot):new FactoryCore(compileLevel(snapshot)),level:snapshot,test});setNotice('');}catch(error){setNotice(message(error));}}
   function focusIssue(issue:Issue){if(!issue.nodeId)return;setSelected(issue.nodeId);setTab('graph');const n=level.nodes.find(n=>n.id===issue.nodeId);if(n)flow.current?.setCenter(n.position.x+115,n.position.y+60,{zoom:1,duration:300});}
   function mapChange(result:MapChange){if(result.error)setNotice(result.error);else {setLevel(result.level);setNotice('');}}
   function replace(next:Level){setMovingPoint(null);setMapMode('objects');history.reset(next);setSelected(null);setFocusNodeId(null);setGraphRevision(value=>value+1);setTab('graph');setChecked(false);setNotice('');}
