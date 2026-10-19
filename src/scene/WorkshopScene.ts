@@ -328,10 +328,14 @@ export class WorkshopScene extends Phaser.Scene {
     const world=this.toWorld(pointer.x,pointer.y), state=session.state;
     this.hooks.onSelect(itemHost(this.level,state)===obj.id && this.inPartRegion(obj,world.x,world.y) && !state.target ? state.item!.blankId : obj.id);
   }
+  private millProgress(obj:WorldObject):number|undefined {
+    const runtime=this.hooks.getRuntime(),machine=runtime?.state.machines[obj.id];
+    return obj.node.params.kind==='mill'&&machine?.stage==='processing'&&runtime?machine.elapsed/(runtime.resources.machines[obj.id].operations[machine.operationIndex].seconds*1000):undefined;
+  }
   private partRegion(obj: WorldObject): Pt[] {
     const part=this.hooks.getRuntime()?.state.item??rawPart(this.level,obj.id);
     if(!part)return [];
-    const pose=itemPose(obj.kind,obj.node.params.kind,part);
+    const pose=itemPose(obj.kind,obj.node.params.kind,part,this.millProgress(obj));
     return boxHull(obj.cx+pose.x,obj.cy+pose.y,0,-pose.halfWidth,PART_LEN,pose.halfWidth,pose.z-pose.halfHeight,pose.z+pose.halfHeight);
   }
   private inPartRegion(obj:WorldObject,wx:number,wy:number){return Phaser.Geom.Polygon.Contains(new Phaser.Geom.Polygon(this.partRegion(obj).flatMap(p=>[p.x,p.y])),wx,wy);}
@@ -380,7 +384,7 @@ export class WorkshopScene extends Phaser.Scene {
       else {
         const machine=s?.machines[obj.id];
         const localProgress=machine?.stage==='processing' && session ? machine.elapsed/(session.resources.machines[obj.id].operations[machine.operationIndex].seconds*1000):0;
-        if(obj.node.params.kind==='mill')drawMill(d,machine?.stage==='processing',time);
+        if(obj.node.params.kind==='mill')drawMill(d,machine?.stage==='processing',time,localProgress);
         else {
           const out=drawLathe(d,spec,{loaded:!!machine?.itemId,hidePart:true,processing:machine?.stage==='processing',progress:localProgress,doneOps:machine?.operationIndex??0,opIndex:Math.min(spec.ops.length-1,machine?.operationIndex??0),finished:machine?.stage==='finished',phase,time,alert,ready:machine?.stage==='loaded'});
           if(out.tip)tip=out.tip;
@@ -389,7 +393,7 @@ export class WorkshopScene extends Phaser.Scene {
       const part=session?s?.item:rawPart(this.level,obj.id);
       const owns=session?!!s&&itemHost(this.level,s)===obj.id:obj.kind==='blank';
       if(part&&owns&&!this.drag){
-        const pose=itemPose(obj.kind,obj.node.params.kind,part);
+        const pose=itemPose(obj.kind,obj.node.params.kind,part,this.millProgress(obj));
         this.renderItem(d,part,pose.x,pose.y,pose.z);
       }
       if(obj.kind==='lathe'&&obj.node.params.kind==='mill'){

@@ -8,7 +8,8 @@ import {FactoryCore} from '../src/core';
 import {MissionSession} from '../src/platform/session';
 import {MISSIONS} from '../src/platform/missions';
 import {itemHost,itemPose,actualSegments} from '../src/scene/model';
-import {MILL_TABLE_Z} from '../src/scene/objects';
+import {MILL_TABLE_Z,millTableOffset,drawMillCutter} from '../src/scene/objects';
+import {Drawer} from '../src/scene/iso';
 import {TaskSheet,ObjectPopover,Dock} from '../src/screens/MissionPanels';
 import {DrawingSheet} from '../src/screens/DrawingSheet';
 
@@ -96,6 +97,23 @@ test('milled stock stays on its support plane and its drawing shows current and 
   const after=renderToString(createElement(DrawingSheet,{title:'Брусок',blank:r.blank,ops:r.operations,actual:{doneOps:1,progress:0}}));
   assert.match(after,/сейчас высота 15 мм/);
   assert.doesNotMatch(after,/Ø/);
+  session.dispose();
+});
+
+test('milling feeds stock under a fixed spindle and returns the table after cutting',()=>{
+  const session=start(millingLevel()),part=session.state.item!;
+  const positions:number[]=[];
+  const drawer={cylZ:(x:number)=>positions.push(x),line:()=>{},p:(x:number,y:number,z:number)=>({x,y:y-z})} as unknown as Drawer;
+  for(const progress of [.1,.3,.5,.7,.9]){
+    const pose=itemPose('lathe','mill',part,progress);
+    assert.ok(pose.x<=1e-9&&pose.x+.56>=-1e-9,'stock must pass beneath spindle x=0');
+    assert.equal(pose.z-pose.halfHeight,MILL_TABLE_Z);
+    assert.ok(drawMillCutter(drawer,.72,true,progress,1000));
+  }
+  assert.ok(positions.every(x=>x===0),'spindle must stay attached to the head');
+  assert.equal(millTableOffset(0),0);assert.equal(millTableOffset(1),0);
+  assert.ok(millTableOffset(.1)>millTableOffset(.9));
+  assert.equal(drawMillCutter(drawer,.72,true,.98,1000),null,'no cutting effects during return');
   session.dispose();
 });
 
