@@ -216,15 +216,30 @@ export function drawWarehouse(d: Drawer, spec: PartSpec, v: { capacity: number; 
   [[-0.55, 0.28], [0.5, 0.28]].forEach(([x, y]) => d.box(x, y, 0, x + 0.05, y + 0.05, 1.12, C.amber, 0.2));
 }
 
-/** Milling machine uses the same floor footprint and part height as the scene hit region. */
+export const MILL_BOX = { x0: -.64, x1: .64, y0: -.36, y1: .36, h: 1.35 };
+export const MILL_TABLE_Z = .55;
+
+/** The upright and head sit behind the workpiece; the cutter is drawn after it. */
 export function drawMill(d:Drawer, processing:boolean, time:number) {
-  d.shadow(-.6,-.3,.6,.3,1,.35);
+  d.shadow(-.6,-.36,.6,.36,1.35,.35);
   hazardFrame(d,-.74,-.34,.74,.34);
   d.box(-.6,-.26,0,.6,.26,.3,C.dark,.15);
-  d.box(-.55,-.26,.3,-.32,.26,1,C.body,.2);
-  d.box(-.32,-.24,.9,.2,.24,1,C.body,.2);
-  d.box(-.3,-.23,.4,.6,.23,.5,C.cast,.15);
-  d.cylZ(.02,0,.74,.9,.055,C.dark);
-  d.cylZ(.02,0,.65,.74,.035,processing?C.amber:C.steelBright);
-  d.faceY(-.53,-.35,.55,.8,.261,processing?C.amber:C.teal,.8);
+  d.box(-.52,-.36,.3,-.28,-.15,1.3,C.body,.2);
+  d.box(-.4,-.34,1.12,.22,.14,1.3,C.body,.2);
+  d.box(-.57,-.27,.43,.6,.28,MILL_TABLE_Z,C.cast,.15);
+  for(const y of [-.17,0,.17])d.line(d.p(-.53,y,MILL_TABLE_Z+.003),d.p(.56,y,MILL_TABLE_Z+.003),C.dark,.75,2);
+  d.faceY(-.49,-.31,.75,1.02,-.149,processing?C.amber:C.teal,.8);
+  void time;
+}
+
+export function drawMillCutter(d:Drawer, top:number, processing:boolean, progress:number,time:number) {
+  const x=processing?-.22+PART_LEN*progress:0;
+  const contact=processing?top:Math.max(.88,top+.12);
+  d.cylZ(x,0,contact+.1,1.12,.055,C.dark);
+  d.cylZ(x,0,contact,contact+.1,.043,processing?C.amber:C.steelBright);
+  if(processing)for(let i=0;i<4;i++){
+    const a=time/70+i*Math.PI/2;
+    d.line(d.p(x+.044*Math.cos(a),.044*Math.sin(a),contact),d.p(x+.044*Math.cos(a+.5),.044*Math.sin(a+.5),contact+.09),C.steelBright,.8);
+  }
+  return processing?d.p(x,0,contact):null;
 }

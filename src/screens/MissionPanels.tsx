@@ -134,7 +134,7 @@ export function ObjectPopover({ session, anchor, stage }: { session: MissionSess
       </>
     );
   } else if (isMachine) {
-    icon = 'lathe'; title = machine.name; sub = session.core.currentTool.name;
+    icon = machine.kind==='mill'?'mill':'lathe'; title = machine.name; sub = session.core.currentTool.name;
     if (s.stage === 'table') body = <p className="t-small t-dim">Станок пуст. Заготовка ещё на столе.</p>;
     else if (finished) body = (
       <>
@@ -192,7 +192,7 @@ export function Dock({ session, onHint, hintText }: { session: MissionSession; o
   const coach = session.mode !== 'olympiad' && (session.coaching || session.mode === 'test');
   const items: { key:string;id:string;icon:IconName;name:string;sub:string;tone:string }[] = [
     {key:'1',id:r.blank.id,icon:'blank',name:s.part?'Готовая деталь':r.blank.name,sub:dimensionText(s.item??r.blank),tone:s.selected===r.blank.id?'sel':''},
-    ...Object.values(r.machines).map((m,i)=>({key:String(i+2),id:m.id,icon:'lathe' as const,name:m.name,sub:s.machines[m.id].stage==='processing'?'Идёт обработка':m.kind==='mill'?'Фрезерный станок':'Токарный станок',tone:s.selected===m.id?'sel':''})),
+    ...Object.values(r.machines).map((m,i)=>({key:String(i+2),id:m.id,icon:(m.kind==='mill'?'mill':'lathe') as IconName,name:m.name,sub:s.machines[m.id].stage==='processing'?'Идёт обработка':m.kind==='mill'?'Фрезерный станок':'Токарный станок',tone:s.selected===m.id?'sel':''})),
     ...Object.values(r.warehouses).map((w,i)=>({key:String(i+2+Object.keys(r.machines).length),id:w.id,icon:'warehouse' as const,name:w.name,sub:`${s.warehouses[w.id]?.count??0} / ${w.capacity}`,tone:s.selected===w.id?'sel':''})),
   ];
   const hasStatus = !session.core.isWelcome;

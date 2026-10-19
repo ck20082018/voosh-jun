@@ -4,13 +4,13 @@ import type {SessionEvent} from '../platform/session';
 import type {CoreState} from '../core';
 import type {ProductionLevel} from '../compiler';
 import type {PartDrag} from '../workshopInteraction';
-import {itemHost,actualSegments,rawPart} from './model';
+import {itemHost,itemPose,actualSegments,rawPart} from './model';
 import {dimensionText} from '../manufacturing';
 import { operationsOf } from '../platform/missions';
 import { isReducedMotion } from '../ui/motion';
 import { Drawer, P, HW, HH, boxHull, type Pt } from './iso';
 import { drawFloorAndWalls, buildProps, drawLamp, roomBounds, type RoomBounds } from './environment';
-import { drawLathe, drawMill, drawPart, drawBench, drawWarehouse, partSegments, toolPosition, LATHE_BOX, BENCH_BOX, WAREHOUSE_BOX, AXIS_Z, PART_LEN, PART_R, type PartSpec } from './objects';
+import { drawLathe, drawMill, drawMillCutter, drawPart, drawBench, drawWarehouse, partSegments, toolPosition, LATHE_BOX, MILL_BOX, BENCH_BOX, WAREHOUSE_BOX, PART_LEN, PART_R, type PartSpec } from './objects';
 
 export interface Insets { left: number; right: number; top: number; bottom: number }
 export interface Anchor { id: string; x: number; y: number }
@@ -201,7 +201,7 @@ export class WorkshopScene extends Phaser.Scene {
 
     for (const { p, node } of placed) {
       const kind = node.type as Kind;
-      const cx = p.x + 0.5, cy = p.y + 0.5, box = BOXES[kind];
+      const cx = p.x + 0.5, cy = p.y + 0.5, box = kind==='lathe'&&node.params.kind==='mill'?MILL_BOX:BOXES[kind];
       const g = track(this.add.graphics().setDepth(cx + cy));
       const poly = new Phaser.Geom.Polygon(boxHull(cx, cy, box.x0, box.y0, box.x1, box.y1, 0, box.h).flatMap(pt => [pt.x, pt.y]));
       const tag = document.createElement('div');
@@ -330,11 +330,9 @@ export class WorkshopScene extends Phaser.Scene {
   }
   private partRegion(obj: WorldObject): Pt[] {
     const part=this.hooks.getRuntime()?.state.item??rawPart(this.level,obj.id);
-    const z=obj.kind==='lathe'?AXIS_Z:obj.kind==='warehouse'?.65:.61;
-    const unit=PART_LEN/(part?.length||60);
-    const halfWidth=part?.shape==='block'?Math.max(.16,part.width*unit/2):.16;
-    const halfHeight=part?.shape==='block'?Math.max(.16,part.height*unit/2):.16;
-    return boxHull(obj.cx-.28,obj.cy,0,-halfWidth,PART_LEN,halfWidth,z-halfHeight,z+halfHeight);
+    if(!part)return [];
+    const pose=itemPose(obj.kind,obj.node.params.kind,part);
+    return boxHull(obj.cx+pose.x,obj.cy+pose.y,0,-pose.halfWidth,PART_LEN,pose.halfWidth,pose.z-pose.halfHeight,pose.z+pose.halfHeight);
   }
   private inPartRegion(obj:WorldObject,wx:number,wy:number){return Phaser.Geom.Polygon.Contains(new Phaser.Geom.Polygon(this.partRegion(obj).flatMap(p=>[p.x,p.y])),wx,wy);}
 
@@ -391,8 +389,15 @@ export class WorkshopScene extends Phaser.Scene {
       const part=session?s?.item:rawPart(this.level,obj.id);
       const owns=session?!!s&&itemHost(this.level,s)===obj.id:obj.kind==='blank';
       if(part&&owns&&!this.drag){
-        const z=obj.kind==='lathe'?AXIS_Z:obj.kind==='warehouse'?.65:.61;
-        this.renderItem(d,part,-.28,0,z);
+        const pose=itemPose(obj.kind,obj.node.params.kind,part);
+        this.renderItem(d,part,pose.x,pose.y,pose.z);
+      }
+      if(obj.kind==='lathe'&&obj.node.params.kind==='mill'){
+        const machine=s?.machines[obj.id],processing=machine?.stage==='processing';
+        const progress=processing&&session?machine.elapsed/(session.resources.machines[obj.id].operations[machine.operationIndex].seconds*1000):0;
+        const top=part&&owns?(()=>{const pose=itemPose(obj.kind,'mill',part);return pose.z+pose.halfHeight;})():.8;
+        const cutter=drawMillCutter(d,top,processing,progress,time);
+        if(cutter)tip=cutter;
       }
       if (alert > 0) {
         this.fxTopQueue.push(() => { this.fxTop.fillStyle(RED, 0.16 * alert); this.fxTop.fillPoints(obj.poly.points, true); });

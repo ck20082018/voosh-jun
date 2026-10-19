@@ -7,7 +7,8 @@ import {compileLevel} from '../src/compiler';
 import {FactoryCore} from '../src/core';
 import {MissionSession} from '../src/platform/session';
 import {MISSIONS} from '../src/platform/missions';
-import {itemHost,actualSegments} from '../src/scene/model';
+import {itemHost,itemPose,actualSegments} from '../src/scene/model';
+import {MILL_TABLE_Z} from '../src/scene/objects';
 import {TaskSheet,ObjectPopover,Dock} from '../src/screens/MissionPanels';
 import {DrawingSheet} from '../src/screens/DrawingSheet';
 
@@ -75,6 +76,27 @@ test('milling uses actual dimensions in the new panels and session',()=>{
   assert.equal(session.state.item?.shape==='block'&&session.state.item.height,15);
   const ready=session.beginDrag();assert.ok(ready);session.finishDrag(ready,r.warehouse.id);
   assert.equal(session.ended,'completed');session.dispose();
+});
+
+test('milled stock stays on its support plane and its drawing shows current and required heights',()=>{
+  const session=start(millingLevel()),r=session.core.resources;
+  const raw=session.state.item!;
+  const pose=itemPose('lathe','mill',raw);
+  assert.equal(pose.z-pose.halfHeight,MILL_TABLE_Z);
+  const before=renderToString(createElement(DrawingSheet,{title:'Брусок',blank:r.blank,ops:r.operations,actual:{doneOps:0,progress:0}}));
+  assert.match(before,/сейчас высота 20 мм/);
+  assert.match(before,/60 × 40 × 15 мм/);
+  const drag=session.beginDrag();assert.ok(drag);session.finishDrag(drag,r.machine.id);
+  manufacture(session,r.machine.id);
+  const finished=session.state.item!;
+  const afterPose=itemPose('lathe','mill',finished);
+  assert.equal(afterPose.z-afterPose.halfHeight,MILL_TABLE_Z);
+  assert.ok(afterPose.z+afterPose.halfHeight<pose.z+pose.halfHeight);
+  assert.equal(afterPose.halfWidth,pose.halfWidth);
+  const after=renderToString(createElement(DrawingSheet,{title:'Брусок',blank:r.blank,ops:r.operations,actual:{doneOps:1,progress:0}}));
+  assert.match(after,/сейчас высота 15 мм/);
+  assert.doesNotMatch(after,/Ø/);
+  session.dispose();
 });
 
 test('cancel, pause and stale gestures preserve the item and cannot start processing',()=>{

@@ -9,6 +9,6 @@ import './screens/drawing.css';
 import './screens/shell.css';
 import './screens/mission.css';
 import './editor.css';
-import './runtime.css';
+import './screens/planning.css';
 import { App } from './App';
 createRoot(document.querySelector('#app')!).render(<App />);

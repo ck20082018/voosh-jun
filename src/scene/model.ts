@@ -1,7 +1,16 @@
 import {locatedPlacements, type Level} from '../level';
 import {dimensions, type Part} from '../manufacturing';
 import type {CoreState} from '../core';
-import {PART_LEN, PART_R, type Segment} from './objects';
+import {PART_LEN, PART_R, AXIS_Z, MILL_TABLE_Z, type Segment} from './objects';
+
+/** One pose for rendering and hit testing; blocks rest on a fixed support plane. */
+export function itemPose(kind:string,machineKind:unknown,part:Part){
+  const unit=PART_LEN/part.length;
+  const halfWidth=part.shape==='block'?part.width*unit/2:PART_R;
+  const halfHeight=part.shape==='block'?part.height*unit/2:PART_R;
+  const support=kind==='lathe'?(machineKind==='mill'?MILL_TABLE_Z:AXIS_Z-halfHeight):kind==='warehouse'?.57:.52;
+  return {x:-PART_LEN/2,y:0,z:support+halfHeight,halfWidth,halfHeight};
+}
 
 /** Physical item ownership is independent of selection and scenario progress. */
 export function itemHost(level:Level, state:Readonly<CoreState>) {
