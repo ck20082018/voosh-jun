@@ -10,11 +10,21 @@
 
 Это договорённость команды, а не техническая защита файлов.
 
-- Оформление: `src/style.css`, `src/classic.css`, `src/presentation/**`, будущие ресурсы `public/assets/**`.
+- Оформление: `src/classic.css`, `src/editor.css`, `src/runtime.css`, `src/presentation/**`, `src/ui/*.css`, `src/ui/Icon.tsx`, `src/screens/*.css`, геометрия и оформление сцены `src/scene/{environment,iso,objects}.ts`, `src/scene/scene.css`, будущие ресурсы `public/assets/**`.
 - Логика: `src/core.ts`, `src/level.ts`, `src/compiler.ts`, `src/validation.ts`, `src/storage.ts`, `src/connections.ts`, `src/editorFlow.ts`, `src/manufacturing.ts`, `src/migration.ts`, `src/imageData.ts`, `src/map.ts`, `src/productionGraph.ts`, `src/catalog.ts`, `src/planning.ts`, `src/groups.ts`, `src/playerLevel.ts`, исходная модель `src/production.ts`; соответствующие тесты в `tests/`.
 - Общие: `src/App.tsx`, `src/GraphEditor.tsx`, `src/ConnectionBuilder.tsx`, `src/Workshop.tsx`, `src/NodeProperties.tsx`, `src/MapSettings.tsx`, `src/PlanningPlayer.tsx`, `src/CatalogProperties.tsx`, `src/PartPreview.tsx`, браузерная загрузка `src/images.ts`, точки входа `src/main.ts`, `src/bootstrap.tsx`, исходная сцена `src/classic.ts`, HTML, package.json/package-lock.json, конфигурация Vite/TypeScript/Docker/CI, документация и инструкции. Интеграционные UI-тесты также общие.
 
 Не меняйте чужую область попутно. Если задача требует общих файлов, делайте минимальные изменения и явно перечисляйте их в PR. Согласовывайте изменение контрактов между логикой и представлением.
+
+После интеграции к общим также относятся `src/Editor.tsx`, `src/screens/*.tsx`, `src/ui/primitives.tsx`, `src/ui/motion.ts`, `src/scene/WorkshopScene.ts`, `src/scene/model.ts`. `src/platform/**` относится к логике; изменение отображаемых состояний и сообщений согласовывайте с оформлением. `src/style.css` заменён отдельными файлами оформления; не восстанавливайте старый глобальный файл ради новой правки.
+
+## Тандем логики и оформления
+
+- Начинайте каждую новую задачу от актуальной `origin/main`; завершённые ветки не продолжайте. Одна задача — один проверяемый пользовательский результат и небольшой PR.
+- Перед работой укажите пакет MVP, критерии проверки, ветку, затрагиваемые общие файлы и кто их меняет. Для новой функции заранее опишите данные и состояния UI: ожидание, обработка, ошибка и успех, если они применимы.
+- При одновременной работе на одном компьютере используйте отдельные Git worktree или клоны. Не переключайте ветку в папке, где работает другой участник. Команды и отдельные порты описаны в `docs/COLLABORATION.md`.
+- Логика сохраняет правила и проверки ядра; оформление использует существующие данные и действия. Изменение контракта передавайте явно, вместе с примером данных и проверкой совместимости.
+- Для изменений поведения или оформления, кроме тестов и сборки, выполните затронутые сценарии из `docs/BROWSER_ACCEPTANCE.md`. Отсутствие браузера фиксируйте как непроведённую проверку; PR остаётся черновиком до её выполнения. Документационные изменения проверяйте по содержанию и ссылкам.
 
 ## Инварианты
 
