@@ -1,0 +1,25 @@
+/* Технический чертёж: «бумажный лист» с размерами и основной надписью */
+.dwg { margin: 0; display: grid; gap: 0; border-radius: var(--r-md); overflow: hidden; background: #f4f1e7; color: #1c2740; border: 1px solid rgba(30, 40, 62, 0.35); box-shadow: var(--e-1); }
+.dwg__svg { display: block; width: 100%; height: auto; background:
+  linear-gradient(rgba(60, 80, 120, 0.07) 1px, transparent 1px) 0 0 / 14px 14px,
+  linear-gradient(90deg, rgba(60, 80, 120, 0.07) 1px, transparent 1px) 0 0 / 14px 14px; }
+.dwg__outline { stroke: #16213a; stroke-width: 2; stroke-linejoin: round; }
+.dwg__center { stroke: #c2542f; stroke-width: 1; stroke-dasharray: 14 3 2 3; }
+.dwg__dim line, .dwg__dia line, .dwg__ext { stroke: #36496e; stroke-width: 1; }
+.dwg__ext { stroke-opacity: 0.7; }
+.dwg__arrow { fill: #36496e; }
+.dwg__dim text, .dwg__dia text { font: 600 11.5px var(--font-text); fill: #1c2740; font-variant-numeric: tabular-nums; }
+.dwg__actual { fill: rgba(19, 153, 139, 0.32); }
+.dwg__hatch { stroke: #c2542f; stroke-width: 1.4; }
+.dwg__excess { opacity: 0.95; }
+.dwg figcaption { border-top: 1px solid rgba(30, 40, 62, 0.35); background: #ece8da; }
+.dwg__block { display: grid; grid-template-columns: repeat(3, auto); margin: 0; }
+.dwg__block > div { padding: 7px 10px; border-right: 1px solid rgba(30, 40, 62, 0.25); min-width: 0; }
+.dwg__block > div:last-child { border-right: 0; }
+.dwg__block dt { font-size: 10px; letter-spacing: 0.1em; text-transform: uppercase; color: #5a6a8c; font-weight: 700; }
+.dwg__block dd { margin: 1px 0 0; font-size: 12.5px; font-weight: 650; overflow-wrap: anywhere; }
+.dwg__legend { margin: 0; padding: 6px 10px 8px; font-size: 11.5px; color: #3f4f70; display: flex; flex-wrap: wrap; gap: 4px 12px; align-items: center; border-top: 1px dashed rgba(30, 40, 62, 0.25); }
+.dwg__key { display: inline-block; width: 16px; height: 9px; margin-right: 5px; vertical-align: -1px; }
+.dwg__key--line { border: 2px solid #16213a; background: transparent; }
+.dwg__key--fill { background: rgba(19, 153, 139, 0.45); }
+.dwg__key--hatch { background: repeating-linear-gradient(135deg, #c2542f 0 2px, transparent 2px 5px); }

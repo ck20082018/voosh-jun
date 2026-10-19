@@ -1,0 +1,503 @@
+{
+  "version": 3,
+  "id": "intermediate-shaft",
+  "name": "Два станка и промежуточный склад",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "start",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "params": {}
+    },
+    {
+      "id": "intro",
+      "type": "intro",
+      "position": {
+        "x": 280,
+        "y": 0
+      },
+      "params": {
+        "title": "Первый валик",
+        "text": "Познакомьтесь с заданием.",
+        "image": ""
+      }
+    },
+    {
+      "id": "task",
+      "type": "task",
+      "position": {
+        "x": 560,
+        "y": 0
+      },
+      "params": {
+        "title": "Изготовьте деталь",
+        "instruction": "Обработайте заготовку и отправьте деталь на склад."
+      }
+    },
+    {
+      "id": "wait",
+      "type": "wait",
+      "position": {
+        "x": 840,
+        "y": 0
+      },
+      "params": {
+        "quantity": 1
+      }
+    },
+    {
+      "id": "finish",
+      "type": "finish",
+      "position": {
+        "x": 1400,
+        "y": 0
+      },
+      "params": {
+        "text": "Отлично! Подходящая деталь находится на складе."
+      }
+    },
+    {
+      "id": "blank",
+      "type": "blank",
+      "position": {
+        "x": 0,
+        "y": 300
+      },
+      "params": {
+        "name": "Стальная заготовка",
+        "material": "Сталь",
+        "shape": "cylinder",
+        "diameter": 20,
+        "length": 60,
+        "width": 40,
+        "height": 20
+      }
+    },
+    {
+      "id": "tool",
+      "type": "tool",
+      "position": {
+        "x": 280,
+        "y": 300
+      },
+      "params": {
+        "name": "Проходной резец",
+        "category": "turning",
+        "kind": "passing"
+      }
+    },
+    {
+      "id": "process",
+      "type": "process",
+      "position": {
+        "x": 560,
+        "y": 300
+      },
+      "params": {
+        "operations": [
+          {
+            "id": "process-1",
+            "kind": "turning",
+            "diameter": 12,
+            "length": 30,
+            "seconds": 3
+          }
+        ]
+      }
+    },
+    {
+      "id": "lathe",
+      "type": "lathe",
+      "position": {
+        "x": 840,
+        "y": 300
+      },
+      "params": {
+        "name": "Токарный станок",
+        "kind": "lathe"
+      }
+    },
+    {
+      "id": "part",
+      "type": "part",
+      "position": {
+        "x": 1120,
+        "y": 300
+      },
+      "params": {
+        "name": "Ступенчатый валик",
+        "material": "Сталь",
+        "shape": "cylinder",
+        "diameter": 20,
+        "length": 60,
+        "width": 40,
+        "height": 20,
+        "sections": [
+          {
+            "diameter": 12,
+            "length": 30
+          }
+        ]
+      }
+    },
+    {
+      "id": "warehouse",
+      "type": "warehouse",
+      "position": {
+        "x": 0,
+        "y": 600
+      },
+      "params": {
+        "name": "Промежуточный склад",
+        "capacity": 1,
+        "mode": "intermediate"
+      }
+    },
+    {
+      "id": "map",
+      "type": "map",
+      "position": {
+        "x": 0,
+        "y": 900
+      },
+      "params": {}
+    },
+    {
+      "id": "lathe-2",
+      "type": "lathe",
+      "position": {
+        "x": 900,
+        "y": 350
+      },
+      "params": {
+        "name": "Второй токарный станок",
+        "kind": "lathe"
+      }
+    },
+    {
+      "id": "process-2",
+      "type": "process",
+      "position": {
+        "x": 600,
+        "y": 650
+      },
+      "params": {
+        "operations": [
+          {
+            "id": "second-section",
+            "kind": "turning",
+            "diameter": 8,
+            "length": 15,
+            "seconds": 2
+          }
+        ]
+      }
+    },
+    {
+      "id": "part-2",
+      "type": "part",
+      "position": {
+        "x": 1200,
+        "y": 350
+      },
+      "params": {
+        "name": "Ступенчатый валик",
+        "material": "Сталь",
+        "shape": "cylinder",
+        "diameter": 20,
+        "length": 60,
+        "width": 40,
+        "height": 20,
+        "sections": [
+          {
+            "diameter": 12,
+            "length": 30
+          },
+          {
+            "diameter": 8,
+            "length": 15
+          }
+        ]
+      }
+    },
+    {
+      "id": "final-store",
+      "type": "warehouse",
+      "position": {
+        "x": 1200,
+        "y": 650
+      },
+      "params": {
+        "name": "Конечный склад",
+        "capacity": 1,
+        "mode": "final"
+      }
+    },
+    {
+      "id": "wait-2",
+      "type": "wait",
+      "position": {
+        "x": 1100,
+        "y": 0
+      },
+      "params": {
+        "quantity": 1
+      }
+    },
+    {
+      "id": "installed-hint-event",
+      "type": "after",
+      "position": {
+        "x": -300,
+        "y": 680
+      },
+      "params": {
+        "action": "blank-installed",
+        "objectId": "lathe"
+      }
+    },
+    {
+      "id": "installed-hint",
+      "type": "hint",
+      "position": {
+        "x": -20,
+        "y": 680
+      },
+      "params": {
+        "title": "Подсказка",
+        "text": "Заготовка установлена. Нажмите «Обработать».",
+        "display": "panel",
+        "confirm": true,
+        "frequency": "once"
+      }
+    },
+    {
+      "id": "processed-hint-event",
+      "type": "after",
+      "position": {
+        "x": -300,
+        "y": 760
+      },
+      "params": {
+        "action": "processing-finished",
+        "objectId": "lathe"
+      }
+    },
+    {
+      "id": "processed-hint",
+      "type": "hint",
+      "position": {
+        "x": -20,
+        "y": 760
+      },
+      "params": {
+        "title": "Подсказка",
+        "text": "Участок готов. Выберите деталь и отправьте её на промежуточный склад.",
+        "display": "panel",
+        "confirm": true,
+        "frequency": "once"
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "start-out-intro-in",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "intro",
+      "targetHandle": "in"
+    },
+    {
+      "id": "intro-out-task-in",
+      "source": "intro",
+      "sourceHandle": "out",
+      "target": "task",
+      "targetHandle": "in"
+    },
+    {
+      "id": "task-out-wait-in",
+      "source": "task",
+      "sourceHandle": "out",
+      "target": "wait",
+      "targetHandle": "in"
+    },
+    {
+      "id": "blank-blank-lathe-blank",
+      "source": "blank",
+      "sourceHandle": "blank",
+      "target": "lathe",
+      "targetHandle": "blank"
+    },
+    {
+      "id": "tool-tool-lathe-tool",
+      "source": "tool",
+      "sourceHandle": "tool",
+      "target": "lathe",
+      "targetHandle": "tool"
+    },
+    {
+      "id": "process-process-lathe-process",
+      "source": "process",
+      "sourceHandle": "process",
+      "target": "lathe",
+      "targetHandle": "process"
+    },
+    {
+      "id": "lathe-machine-part-machine",
+      "source": "lathe",
+      "sourceHandle": "machine",
+      "target": "part",
+      "targetHandle": "machine"
+    },
+    {
+      "id": "part-part-wait-part",
+      "source": "part",
+      "sourceHandle": "part",
+      "target": "wait",
+      "targetHandle": "part"
+    },
+    {
+      "id": "warehouse-warehouse-wait-warehouse",
+      "source": "warehouse",
+      "sourceHandle": "warehouse",
+      "target": "wait",
+      "targetHandle": "warehouse"
+    },
+    {
+      "id": "wait-out-wait-2-in",
+      "source": "wait",
+      "sourceHandle": "out",
+      "target": "wait-2",
+      "targetHandle": "in"
+    },
+    {
+      "id": "wait-2-out-finish-in",
+      "source": "wait-2",
+      "sourceHandle": "out",
+      "target": "finish",
+      "targetHandle": "in"
+    },
+    {
+      "id": "warehouse-blank-lathe-2-blank",
+      "source": "warehouse",
+      "sourceHandle": "blank",
+      "target": "lathe-2",
+      "targetHandle": "blank"
+    },
+    {
+      "id": "tool-tool-lathe-2-tool",
+      "source": "tool",
+      "sourceHandle": "tool",
+      "target": "lathe-2",
+      "targetHandle": "tool"
+    },
+    {
+      "id": "process-2-process-lathe-2-process",
+      "source": "process-2",
+      "sourceHandle": "process",
+      "target": "lathe-2",
+      "targetHandle": "process"
+    },
+    {
+      "id": "lathe-2-machine-part-2-machine",
+      "source": "lathe-2",
+      "sourceHandle": "machine",
+      "target": "part-2",
+      "targetHandle": "machine"
+    },
+    {
+      "id": "part-2-part-wait-2-part",
+      "source": "part-2",
+      "sourceHandle": "part",
+      "target": "wait-2",
+      "targetHandle": "part"
+    },
+    {
+      "id": "final-store-warehouse-wait-2-warehouse",
+      "source": "final-store",
+      "sourceHandle": "warehouse",
+      "target": "wait-2",
+      "targetHandle": "warehouse"
+    },
+    {
+      "id": "installed-hint-event-event-installed-hint-event",
+      "source": "installed-hint-event",
+      "sourceHandle": "event",
+      "target": "installed-hint",
+      "targetHandle": "event"
+    },
+    {
+      "id": "processed-hint-event-event-processed-hint-event",
+      "source": "processed-hint-event",
+      "sourceHandle": "event",
+      "target": "processed-hint",
+      "targetHandle": "event"
+    }
+  ],
+  "grid": {
+    "width": 7,
+    "height": 5,
+    "points": [
+      {
+        "id": "point-blank",
+        "x": 0,
+        "y": 2
+      },
+      {
+        "id": "point-lathe",
+        "x": 2,
+        "y": 2
+      },
+      {
+        "id": "point-warehouse",
+        "x": 4,
+        "y": 2
+      },
+      {
+        "id": "point-free-1",
+        "x": 0,
+        "y": 0
+      },
+      {
+        "id": "point-free-2",
+        "x": 1,
+        "y": 0
+      },
+      {
+        "id": "point-lathe-2",
+        "x": 4,
+        "y": 0
+      },
+      {
+        "id": "point-final",
+        "x": 6,
+        "y": 2
+      }
+    ]
+  },
+  "placements": [
+    {
+      "nodeId": "blank",
+      "pointId": "point-blank"
+    },
+    {
+      "nodeId": "lathe",
+      "pointId": "point-lathe"
+    },
+    {
+      "nodeId": "warehouse",
+      "pointId": "point-warehouse"
+    },
+    {
+      "nodeId": "lathe-2",
+      "pointId": "point-lathe-2"
+    },
+    {
+      "nodeId": "final-store",
+      "pointId": "point-final"
+    }
+  ]
+}

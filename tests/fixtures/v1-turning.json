@@ -1,0 +1,226 @@
+{
+  "version": 1,
+  "id": "first-shaft",
+  "name": "Первый валик",
+  "nodes": [
+    {
+      "id": "start",
+      "type": "start",
+      "position": {
+        "x": 0,
+        "y": 0
+      },
+      "params": {}
+    },
+    {
+      "id": "intro",
+      "type": "intro",
+      "position": {
+        "x": 260,
+        "y": 0
+      },
+      "params": {
+        "title": "Первый валик",
+        "text": "Установите заготовку в станок, обработайте и отправьте валик на склад."
+      },
+      "size": {
+        "width": 420,
+        "height": 280
+      }
+    },
+    {
+      "id": "blank",
+      "type": "blank",
+      "position": {
+        "x": 0,
+        "y": 330
+      },
+      "params": {
+        "name": "Стальная заготовка",
+        "material": "Сталь",
+        "diameter": 20,
+        "length": 60
+      }
+    },
+    {
+      "id": "tool",
+      "type": "tool",
+      "position": {
+        "x": 0,
+        "y": 530
+      },
+      "params": {
+        "name": "Проходной резец",
+        "kind": "turning"
+      }
+    },
+    {
+      "id": "turning",
+      "type": "turning",
+      "position": {
+        "x": 270,
+        "y": 330
+      },
+      "params": {
+        "diameter": 12,
+        "length": 30,
+        "seconds": 3
+      }
+    },
+    {
+      "id": "lathe",
+      "type": "lathe",
+      "position": {
+        "x": 540,
+        "y": 330
+      },
+      "params": {
+        "name": "Токарный станок"
+      }
+    },
+    {
+      "id": "warehouse",
+      "type": "warehouse",
+      "position": {
+        "x": 540,
+        "y": 560
+      },
+      "params": {
+        "name": "Склад",
+        "capacity": 1
+      }
+    },
+    {
+      "id": "task",
+      "type": "task",
+      "position": {
+        "x": 530,
+        "y": 0
+      },
+      "params": {
+        "title": "Изготовьте ступенчатый валик",
+        "instruction": "Обработайте заготовку и отправьте готовую деталь на склад."
+      }
+    },
+    {
+      "id": "wait",
+      "type": "wait",
+      "position": {
+        "x": 800,
+        "y": 0
+      },
+      "params": {}
+    },
+    {
+      "id": "finish",
+      "type": "finish",
+      "position": {
+        "x": 1090,
+        "y": 0
+      },
+      "params": {
+        "text": "Отлично! Подходящий валик находится на складе."
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "start-out-intro-in",
+      "source": "start",
+      "sourceHandle": "out",
+      "target": "intro",
+      "targetHandle": "in"
+    },
+    {
+      "id": "intro-out-task-in",
+      "source": "intro",
+      "sourceHandle": "out",
+      "target": "task",
+      "targetHandle": "in"
+    },
+    {
+      "id": "task-out-wait-in",
+      "source": "task",
+      "sourceHandle": "out",
+      "target": "wait",
+      "targetHandle": "in"
+    },
+    {
+      "id": "wait-out-finish-in",
+      "source": "wait",
+      "sourceHandle": "out",
+      "target": "finish",
+      "targetHandle": "in"
+    },
+    {
+      "id": "blank-blank-turning-blank",
+      "source": "blank",
+      "sourceHandle": "blank",
+      "target": "turning",
+      "targetHandle": "blank"
+    },
+    {
+      "id": "tool-tool-lathe-tool",
+      "source": "tool",
+      "sourceHandle": "tool",
+      "target": "lathe",
+      "targetHandle": "tool"
+    },
+    {
+      "id": "turning-operation-lathe-operation",
+      "source": "turning",
+      "sourceHandle": "operation",
+      "target": "lathe",
+      "targetHandle": "operation"
+    },
+    {
+      "id": "lathe-machine-task-machine",
+      "source": "lathe",
+      "sourceHandle": "machine",
+      "target": "task",
+      "targetHandle": "machine"
+    },
+    {
+      "id": "warehouse-warehouse-task-warehouse",
+      "source": "warehouse",
+      "sourceHandle": "warehouse",
+      "target": "task",
+      "targetHandle": "warehouse"
+    },
+    {
+      "id": "warehouse-warehouse-wait-warehouse",
+      "source": "warehouse",
+      "sourceHandle": "warehouse",
+      "target": "wait",
+      "targetHandle": "warehouse"
+    },
+    {
+      "id": "turning-operation-wait-operation",
+      "source": "turning",
+      "sourceHandle": "operation",
+      "target": "wait",
+      "targetHandle": "operation"
+    }
+  ],
+  "grid": {
+    "width": 5,
+    "height": 5
+  },
+  "placements": [
+    {
+      "nodeId": "blank",
+      "x": 0,
+      "y": 2
+    },
+    {
+      "nodeId": "lathe",
+      "x": 2,
+      "y": 2
+    },
+    {
+      "nodeId": "warehouse",
+      "x": 4,
+      "y": 2
+    }
+  ]
+}

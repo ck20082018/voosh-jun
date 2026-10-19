@@ -1,0 +1,11 @@
+import {test} from 'node:test';
+import assert from 'node:assert/strict';
+import {createHistory,editHistory,undoHistory,endHistory} from '../src/editorHistory';
+import {exampleLevel,deleteNodes} from '../src/level';
+import {groupNodes,moveGroup} from '../src/groups';
+import {serializeLevel} from '../src/storage';
+test('undo restores deleted nodes with their links/placements and keeps history out of level JSON',()=>{const level=exampleLevel(),initial=createHistory(level);const changed=editHistory(initial,deleteNodes(initial.level,['blank']),null);assert.equal(changed.level.nodes.some(n=>n.id==='blank'),false);assert.deepEqual(undoHistory(changed).level,level);assert.equal(serializeLevel(undoHistory(changed).level),serializeLevel(level));assert.equal('past' in JSON.parse(serializeLevel(changed.level)),false);});
+test('one group gesture has one undo; independent gestures and later edits undo separately',()=>{const level=groupNodes(exampleLevel(),['start','intro'],'g');let h=createHistory(level);for(let i=1;i<=10;i++)h=editHistory(h,moveGroup(h.level,'g',{x:i*10,y:i*5}),1);assert.equal(h.past.length,1);assert.deepEqual(undoHistory(h).level,level);const first=h.level;h=editHistory(h,moveGroup(h.level,'g',{x:400,y:50}),2);h=editHistory(h,{...h.level,name:'Changed'},null);h=undoHistory(h);assert.equal(h.level.name,level.name);h=undoHistory(h);assert.deepEqual(h.level,first);h=undoHistory(h);assert.deepEqual(h.level,level);});
+test('no-op edits consume no undo entries; history is bounded and snapshots isolate caller changes',()=>{let h=createHistory(exampleLevel());assert.equal(editHistory(h,structuredClone(h.level),null),h);assert.equal(undoHistory(h),h);for(let i=0;i<60;i++)h=editHistory(h,{...h.level,name:`Edit ${i}`},null);assert.equal(h.past.length,50);const before=h.past.at(-1)!.nodes[0].position.x;h.level.nodes[0].position.x=999;assert.equal(h.past.at(-1)!.nodes[0].position.x,before);h=undoHistory(h);h=editHistory(h,{...h.level,name:'New edit after undo'},null);assert.equal(undoHistory(h).level.name,'Edit 58');});
+
+test('a gesture returning to its original state creates no undo step',()=>{const h=createHistory(exampleLevel());let changed=editHistory(h,{...h.level,name:'Temporary name'},1);changed=editHistory(changed,h.level,1);assert.equal(endHistory(changed).past.length,0);});
