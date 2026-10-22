@@ -1,0 +1,24 @@
+.exercise-page { max-width: 1600px; margin-inline: auto; }
+.exercise-layout { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, 1fr); gap: 24px; align-items: start; }
+.exercise-brief, .exercise-controls { padding: clamp(16px, 3vw, 32px); display: grid; gap: 18px; min-width: 0; }
+.exercise-brief p, .exercise-controls p { margin: 0; }
+.exercise-diagram { width: 100%; min-width: 0; }
+.exercise-diagram svg { width: 100%; height: auto; display: block; color: #273750; }
+.exercise-diagram text { fill: #273750; font-family: var(--font-text); }
+.exercise-diagram figcaption { padding: 12px; font-size: 13px; }
+.exercise-inputs { border: 0; padding: 0; margin: 0; display: grid; gap: 16px; min-width: 0; }
+.exercise-field { display: grid; gap: 8px; font-size: 14px; }
+.exercise-field input, .exercise-field select { min-width: 0; width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--line, #697586); border-radius: 8px; background: var(--bg, #111e2b); color: var(--text, #edf2f6); font: inherit; }
+.exercise-field :is(input, select):focus-visible { outline: 2px solid #dbb967; outline-offset: 3px; }
+.exercise-sequence { display: grid; gap: 8px; padding: 0; margin: 0; list-style: none; }
+.exercise-sequence li { display: flex; gap: 8px; align-items: center; padding: 10px; border: 1px solid var(--line, #697586); border-radius: 8px; }
+.exercise-sequence b { flex: 1; overflow-wrap: anywhere; font-size: 14px; }
+.exercise-actions, .exercise-palette { display: flex; flex-wrap: wrap; gap: 8px; }
+.exercise-hint { padding: 16px; border-left: 3px solid #dbb967; background: #dbb96712; }
+.exercise-feedback ul { padding-left: 20px; display: grid; gap: 12px; }
+.exercise-feedback li[data-ok=true] { color: #7bd5b4; }
+.exercise-feedback li[data-ok=false] > b { color: #ff9d89; }
+.exercise-feedback details { max-height: 350px; overflow: auto; }
+.exercise-brief table { width: 100%; border-collapse: collapse; text-align: left; }
+.exercise-brief td, .exercise-brief th { padding: 8px; border-bottom: 1px solid var(--line, #697586); }
+@media (max-width: 850px) { .exercise-layout { grid-template-columns: minmax(0, 1fr); } }

@@ -91,15 +91,15 @@ export function recommended(profile: Profile): MissionSpec | null {
 /* ---------- достижения ---------- */
 export interface AttemptContext { missionId: string; opsTotal: number; summary: AttemptSummary; score: Score; mode: 'training' | 'olympiad' }
 export interface AchievementDef { id: string; title: string; description: string; icon: IconName; test: (profile: Profile, attempt: AttemptContext) => boolean }
-const playable = MISSIONS.filter(m => m.direction === 'machining');
+const playable = MISSIONS.filter(m => m.direction === 'machining' && m.build);
 export const ACHIEVEMENTS: AchievementDef[] = [
-  { id: 'first-chip', title: 'Первая стружка', description: 'Сдайте первую деталь на склад.', icon: 'lathe', test: (p, a) => a.summary.completed && a.mode === 'training' || Object.values(p.records).some(r => r.status !== 'in-progress') },
+  { id: 'first-chip', title: 'Первая стружка', description: 'Сдайте первую деталь на склад.', icon: 'lathe', test: (p, a) => a.summary.completed && a.summary.stored && a.mode === 'training' || MISSIONS.some(m => !!m.build && isPassed(p, m.id)) },
   { id: 'clean-work', title: 'Чистая работа', description: 'Выполните задание без единой ошибки.', icon: 'checkCircle', test: (_p, a) => a.summary.completed && a.summary.errors === 0 },
   { id: 'self-made', title: 'Сам себе мастер', description: 'Пройдите тренировку без обучения и подсказок.', icon: 'hand', test: (_p, a) => a.mode === 'training' && a.summary.completed && !a.summary.coaching && a.summary.hints === 0 },
   { id: 'on-schedule', title: 'В пределах нормы', description: 'Уложитесь во время нормы заказа.', icon: 'clock', test: (_p, a) => a.summary.completed && a.summary.timeSec <= a.summary.parSec },
   { id: 'top-grade', title: 'Высшая оценка', description: `Наберите ${MAX_GRADE_SCORE} баллов или больше.`, icon: 'medal', test: (_p, a) => a.score.stars === 3 },
   { id: 'multi-stage', title: 'Многоступенчатый', description: 'Сдайте деталь, обработанную в две операции или больше.', icon: 'layers', test: (_p, a) => a.summary.completed && a.opsTotal >= 2 },
-  { id: 'shop-master', title: 'Мастер учебного цеха', description: 'Пройдите все задания учебного цеха.', icon: 'warehouse', test: p => MISSIONS.filter(m => m.zone === 'shop').every(m => isPassed(p, m.id)) },
+  { id: 'shop-master', title: 'Мастер учебного цеха', description: 'Пройдите все задания учебного цеха.', icon: 'warehouse', test: p => MISSIONS.filter(m => m.zone === 'shop' && m.build).every(m => isPassed(p, m.id)) },
   { id: 'turner', title: 'Токарь', description: 'Пройдите все задания направления «Механическая обработка».', icon: 'gears', test: p => playable.every(m => isPassed(p, m.id)) },
   { id: 'olympian', title: 'Олимпиец', description: 'Сдайте этап олимпиады.', icon: 'trophy', test: (p, a) => a.mode === 'olympiad' && a.summary.completed || Object.values(p.stages).some(s => s.completed) },
   { id: 'steady-hand', title: 'Твёрдая рука', description: 'Три задания без ошибок.', icon: 'target', test: p => Object.values(p.records).filter(r => r.bestErrors === 0).length >= 3 },

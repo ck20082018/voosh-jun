@@ -32,6 +32,7 @@ function playThrough(session: MissionSession, options: { wrongTargetOnce?: boole
 
 test('каждая миссия платформы проходит валидацию, компилируется и имеет заявленные операции', () => {
   for (const mission of MISSIONS) {
+    if (!mission.build) continue;
     const level = mission.build();
     assert.deepEqual(validateLevel(level), [], `${mission.id}: уровень должен быть корректен`);
     const compiled = compileLevel(level);
@@ -41,7 +42,7 @@ test('каждая миссия платформы проходит валида
   assert.equal(new Set(MISSIONS.map(m => m.id)).size, MISSIONS.length);
 });
 
-test('этапы олимпиады корректны, а запланированные направления не содержат играбельных миссий', () => {
+test('этапы олимпиады корректны, а будущие миссии не дублируют играбельные', () => {
   for (const olympiad of OLYMPIADS) for (const stage of olympiad.stages) assert.deepEqual(validateLevel(stage.build()), [], stage.id);
   const planned = OLYMPIADS.filter(o => o.status === 'planned');
   assert.ok(planned.every(o => o.stages.length === 0));
@@ -51,7 +52,8 @@ test('этапы олимпиады корректны, а запланиров�
 
 test('сессия: полный проход без ошибок даёт максимальную оценку без обучения', () => {
   for (const mission of MISSIONS) {
-    const session = new MissionSession(new FactoryCore(compileLevel(mission.build())), 'training', { coaching: false });
+    if (!mission.build) continue;
+    const session = new MissionSession(new FactoryCore(compileLevel(mission.build!())), 'training', { coaching: false });
     playThrough(session);
     assert.equal(session.ended, 'completed', mission.id);
     const summary = session.summary();
@@ -65,7 +67,7 @@ test('сессия: полный проход без ошибок даёт ма�
 });
 
 test('сессия: неверная цель — ошибка, штраф и восстановление', () => {
-  const session = new MissionSession(new FactoryCore(compileLevel(MISSIONS[0].build())), 'training', { coaching: false });
+  const session = new MissionSession(new FactoryCore(compileLevel(MISSIONS[0].build!())), 'training', { coaching: false });
   const events: string[] = [];
   session.onEvent(event => { if (event.type === 'error') events.push(event.code); });
   playThrough(session, { wrongTargetOnce: true });
@@ -107,7 +109,7 @@ test('олимпиада: по истечении времени работа с
 });
 
 test('оценка не зависит от уровня и XP игрока', () => {
-  const session = playThrough(new MissionSession(new FactoryCore(compileLevel(MISSIONS[0].build())), 'olympiad', { timeLimitSec: 300 }));
+  const session = playThrough(new MissionSession(new FactoryCore(compileLevel(MISSIONS[0].build!())), 'olympiad', { timeLimitSec: 300 }));
   const summary = { ...session.summary(), timeSec: 30 };
   const novice = applyStageAttempt(defaultProfile(), 'x/y', 'Этап', summary, computeScore(summary), 1);
   const veteran = applyStageAttempt({ ...defaultProfile(), xp: 5000 }, 'x/y', 'Этап', summary, computeScore(summary), 1);
@@ -131,7 +133,7 @@ test('прогресс: зоны, XP, уровни, достижения и по
   assert.equal(missionStatus(profile, MISSIONS[0]), 'in-progress');
   const clear = (id: string, timeSec = 20, coaching = false) => {
     const mission = MISSIONS.find(m => m.id === id)!;
-    const session = playThrough(new MissionSession(new FactoryCore(compileLevel(mission.build())), 'training', { coaching }));
+    const session = playThrough(new MissionSession(new FactoryCore(compileLevel(mission.build!())), 'training', { coaching }));
     const summary = { ...session.summary(), timeSec };
     return applyMissionAttempt(profile, id, summary, computeScore(summary), summary.opsTotal);
   };
