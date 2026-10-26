@@ -19,6 +19,7 @@ export interface ErrorRecord { atSec: number; code: 'wrong-target' | 'invalid-co
 const NOTIFY_EVERY_MS = 90;
 
 export class MissionSession {
+  readonly evaluationProfile?: 'turning-learning';
   readonly core: FactoryCore;
   readonly mode: SessionMode;
   readonly timeLimitMs: number | null;
@@ -36,8 +37,9 @@ export class MissionSession {
   private unsubscribeCore: (() => void) | null = null;
   private sinceNotify = 0;
 
-  constructor(core: FactoryCore, mode: SessionMode, options: { coaching?: boolean; timeLimitSec?: number | null } = {}) {
+  constructor(core: FactoryCore, mode: SessionMode, options: { coaching?: boolean; timeLimitSec?: number | null; evaluationProfile?: 'turning-learning' } = {}) {
     this.core = core;
+    this.evaluationProfile=mode==='training'?options.evaluationProfile:undefined;
     this.mode = mode;
     this.coaching = mode === 'training' ? options.coaching ?? true : false;
     this.timeLimitMs = options.timeLimitSec ? options.timeLimitSec * 1000 : null;
@@ -201,6 +203,7 @@ export class MissionSession {
     const ops = this.core.isWelcome ? [] : Object.values(this.core.resources.machines).flatMap(m=>m.operations);
     const s = this.core.state;
     return {
+      evaluationProfile:this.evaluationProfile,
       mode: this.mode === 'olympiad' ? 'olympiad' : 'training',
       completed: this.ended === 'completed' || (s.completed && !this.core.isWelcome),
       installed: this.installed,

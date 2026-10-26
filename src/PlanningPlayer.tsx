@@ -7,7 +7,8 @@ import { dimensionText, dimensions } from './manufacturing';
 import { PartPreview } from './PartPreview';
 import { projectCell } from './presentation/workshopDrawing';
 import { Icon } from './ui/Icon';
-export function PlanningPlayer({ core, level, onExit, renderRuntime }: {
+export function PlanningPlayer({ core, level, onExit, renderRuntime, exitLabel }: {
+    exitLabel?:string;
     core: PlanningCore;
     level: Level;
     onExit: () => void;
@@ -30,7 +31,7 @@ export function PlanningPlayer({ core, level, onExit, renderRuntime }: {
     function updateOperation(id: string, patch: Partial<PlayerOperation>) { change({ ...plan, operations: plan.operations.map(o => o.id === id ? { ...o, ...patch } as PlayerOperation : o) }); }
     function reorder(index: number, delta: number) { const operations = [...plan.operations]; [operations[index], operations[index + delta]] = [operations[index + delta], operations[index]]; change({ ...plan, operations }); }
     const occupied = new Set(level.placements.map(p => p.pointId));
-    return <main className="player-app planning-app"><header className="app-header"><div className="brand"><span className="brand-icon"><Icon name="route" size={26}/></span><div><span className="eyebrow">План игрока</span><h1>{level.name}</h1><p>План производства · выберите оборудование и проверьте результат.</p></div></div><div className="player-header-actions"><button onClick={() => { core.reset(); setChecked(false); setPreviewed(false); setError(''); refresh(); }}><Icon name="refresh" size={16}/>Начать заново</button><button onClick={onExit}>← Вернуться в редактор</button></div></header>
+    return <main className="player-app planning-app"><header className="app-header"><div className="brand"><span className="brand-icon"><Icon name="route" size={26}/></span><div><span className="eyebrow">План игрока</span><h1>{level.name}</h1><p>План производства · выберите оборудование и проверьте результат.</p></div></div><div className="player-header-actions"><button onClick={() => { core.reset(); setChecked(false); setPreviewed(false); setError(''); refresh(); }}><Icon name="refresh" size={16}/>Начать заново</button><button onClick={onExit}>{exitLabel??'← Вернуться в редактор'}</button></div></header>
  <div className="planning-layout"><section><div className="planning-card"><h2>{String(intro?.params.title ?? 'Задание')}</h2>{intro?.params.image && <img src={String(intro.params.image)} alt="Изображение задания" style={{ maxWidth: '100%', maxHeight: 220 }}/>}<p>{String(intro?.params.text ?? 'Составьте собственный план производства.')}</p><PartPreview label="Требуемая деталь" part={{ ...dimensions(goal.params), material: String(goal.params.material), sections: goal.params.sections as {
             diameter: number;
             length: number;

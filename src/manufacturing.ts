@@ -17,12 +17,16 @@ export type Blank = Dimensions & {
 };
 export type Part = Dimensions & {
     geometry?: TurningGeometry;
+    surfaceQuality?: number;
+    lastCutDepth?: number;
     blankId: string;
     material: string;
     sections: Section[];
     operationIds: string[];
 };
 export type Requirements = Dimensions & {
+    minQuality?: number;
+    maxLastCutDepth?: number;
     id: string;
     name: string;
     material: string;
@@ -38,6 +42,17 @@ export function dimensions(p: Record<string, unknown>, prefix = ''): Dimensions 
 export function sameDimensions(a: Dimensions, b: Dimensions): boolean { return a.shape === b.shape && near(a.length, b.length) && (a.shape === 'cylinder' && b.shape === 'cylinder' ? near(a.diameter, b.diameter) : a.shape === 'block' && b.shape === 'block' && near(a.width, b.width) && near(a.height, b.height)); }
 export function sameOperations(actual: readonly OperationSpec[], expected: readonly OperationSpec[]): boolean { return actual.length === expected.length && actual.every((a, i) => { const b = expected[i]; return a.kind === b.kind && near(a.seconds, b.seconds) && (a.kind === 'turning' && b.kind === 'turning' ? near(a.diameter, b.diameter) && near(a.length, b.length) : a.kind === 'milling' && b.kind === 'milling' && near(a.depth, b.depth)); }); }
 export function applyOperation(blank: Blank, previous: Part | null, op: OperationSpec): Part {
+    if (op.kind === 'turning' && op.surfacePass) {
+        const p:Part=previous??{...blank,blankId:blank.id,sections:[],operationIds:[]};
+        const pass=op.surfacePass;
+        const result=applyTurningOperation(p,{chuckSide:'z0',gripLength:pass.grip},pass.target,op.id);
+        if(!result.ok)throw new Error(result.error.message);
+        const before=geometryOf(p),after=geometryOf(result.value);
+        if(before.ok&&after.ok&&!sameGeometry(before.value,after.value)){
+            result.value.surfaceQuality=pass.quality;result.value.lastCutDepth=pass.removedDepth;
+        }
+        return result.value;
+    }
     const base: Part = previous ? structuredClone(previous) : { ...(blank.shape === 'cylinder' ? { shape: 'cylinder' as const, diameter: blank.diameter, length: blank.length } : { shape: 'block' as const, length: blank.length, width: blank.width, height: blank.height }), blankId: blank.id, material: blank.material, sections: [], operationIds: [] };
     if (op.kind === 'turning' && base.shape === 'cylinder') {
         if (!Number.isFinite(op.diameter) || op.diameter <= 0 || !Number.isFinite(op.length) || op.length <= 0 || blank.shape !== 'cylinder' || op.diameter > blank.diameter)
@@ -93,6 +108,8 @@ export function cylinderProfile(part:Dimensions & {sections:readonly Section[]})
 }
 export function matchesFreeResult(part:Part|null,expected:Requirements):boolean{
  if(!part||part.material!==expected.material||part.shape!==expected.shape)return false;
+ if(expected.minQuality!==undefined&&(part.surfaceQuality??0)<expected.minQuality)return false;
+ if(expected.maxLastCutDepth!==undefined&&(part.lastCutDepth??Infinity)>expected.maxLastCutDepth)return false;
  if(part.shape==='block')return sameDimensions(part,expected);
  if(expected.shape!=='cylinder')return false;
  const actual=geometryOf(part),wanted=geometryOf(expected);

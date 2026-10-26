@@ -10,6 +10,7 @@
  *  — время 100 (норма = сумма времени операций + 30 с на действия игрока).
  */
 export interface AttemptSummary {
+  evaluationProfile?: 'turning-learning';
   mode: 'training' | 'olympiad';
   completed: boolean;
   installed: boolean;
@@ -35,6 +36,12 @@ export const MAX_GRADE_SCORE = 950;
 export const parSeconds = <T extends {seconds:number}>(operations: T[]) => operations.reduce((sum, op) => sum + op.seconds, 0) + PAR_OVERHEAD_SEC;
 
 export function computeScore(a: AttemptSummary): Score {
+  if(a.mode==='training'&&a.evaluationProfile==='turning-learning'){
+    const points=a.completed?1000:0;
+    return {total:points,max:1000,stars:a.completed?3:0,accuracy:1,
+      criteria:[{id:'order',label:'Геометрия, материал и требования качества соответствуют заказу',ok:a.completed,points,max:1000}],
+      lines:[{id:'learning',label:'Учебный результат',points,max:1000,note:'Чтение подсказок, чертежа и время размышления не штрафуются. Эффективность показана отдельно.'}]};
+  }
   const share = a.opsTotal > 0 ? a.opsDone / a.opsTotal : 0;
   const criteria: Criterion[] = [
     { id: 'install', label: 'Заготовка закреплена в станке', ok: a.installed, points: a.installed ? 80 : 0, max: 80 },

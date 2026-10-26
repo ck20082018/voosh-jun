@@ -410,7 +410,7 @@ export class FactoryCore {
                 }
                 else
                     r.stage = 'finished';
-                this.emit({ type: 'processing-finished', objectId: id, machineId: id, itemId: s.item.blankId, operationId: op.id,toolId:(m.operationTools?.[op.id]??m.tool).id, part: s.item, message: `Операция ${index + 1} завершена: ${op.kind === 'turning' ? `Ø${op.diameter} × ${op.length} мм` : `снято ${op.depth} мм`}` });
+                this.emit({ type: 'processing-finished', objectId: id, machineId: id, itemId: s.item.blankId, operationId: op.id,toolId:(m.operationTools?.[op.id]??m.tool).id, part: s.item, message: `Операция ${index + 1} завершена: ${op.kind === 'turning' ? op.surfacePass ? op.surfacePass.target.kind==='face' ? `подрезка до длины ${op.surfacePass.target.length} мм` : `проход до Ø${op.surfacePass.target.diameter} мм на Z${op.surfacePass.target.z0}–${op.surfacePass.target.z1}` : `Ø${op.diameter} × ${op.length} мм` : `снято ${op.depth} мм`}` });
                 if (run !== this.runId || this.value.disposed)
                     return;
             }

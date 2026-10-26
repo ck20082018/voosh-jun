@@ -38,6 +38,14 @@ export function operationCompatibility(part: Part, kind: string, tool: {
     kind: string;
 }, ops: readonly OperationSpec[]): string[] {
     const errors: string[] = [];
+    if(ops.some(o=>o.kind==='turning'&&o.surfacePass)){
+      let current=structuredClone(part);
+      for(const op of ops){
+        if(op.kind!=='turning'||!op.surfacePass||kind!=='lathe'||tool.category!=='turning'||tool.kind!==(op.surfacePass.target.kind==='face'?'facing':'passing'))return ['Несовместимый инструмент или станок для поверхностной операции.'];
+        if(op.surfacePass.load>100)return ['Перегрузка: уменьшите режимы до запуска.'];
+        try{current=applyOperation({...dimensions(current),id:current.blankId,name:'Деталь',material:current.material},current,op);}catch(e){return [(e as Error).message];}
+      }return [];
+    }
     if (kind === 'lathe') {
         if (part.shape !== 'cylinder' || tool.category !== 'turning' || tool.kind !== 'passing' || ops.some(o => o.kind !== 'turning'))
             return ['Токарный станок поддерживает цилиндр, проходной резец и продольное точение.'];

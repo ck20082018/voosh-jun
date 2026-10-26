@@ -1,3 +1,4 @@
+import {TurningBlueprint} from './TurningWorkview';
 import { Fragment, useMemo, useState } from 'react';
 import { DIRECTIONS, MISSIONS, PLANNED, ZONES, type Direction, type MissionSpec } from '../platform/missions';
 import { isPassed, levelFromXp, lockReason, missionStatus, STATUS_LABEL, zoneState, type MissionStatus, type Profile } from '../platform/progress';
@@ -57,7 +58,7 @@ function Track({ direction, profile, sel, onSelect }: { direction: Direction; pr
         {missions.map(m => {
           const status = missionStatus(profile, m);
           const zone = ZONES.find(z => z.id === m.zone)!;
-          const gate = !seen.has(zone.id) && zone.requiresMissions.length > 0;
+          const gate = !seen.has(zone.id) && (zone.requiresMissions.length > 0 || zone.id === 'turning-school');
           seen.add(zone.id);
           const zs = zoneState(profile, zone);
           return (
@@ -133,7 +134,7 @@ function MissionDetail({ profile, sel, onClose }: { profile: Profile; sel: Selec
       <p>{mission.order}</p>
       <p className="t-small t-dim">{mission.teaches}</p>
       <div className="detail__meta"><span><Icon name="clock" size={16} />около {mission.minutes} мин</span><span><Difficulty value={mission.difficulty} />сложность</span></div>
-      <DrawingSheet title={drawing.title} blank={drawing.blank} ops={drawing.ops} />
+      <>{mission.training?<TurningBlueprint geometry={mission.training.requirements} title={mission.title}/>:<DrawingSheet title={drawing.title} blank={drawing.blank} ops={drawing.ops} />}</>
       {record && record.best > 0 && (
         <dl className="detail__rec">
           <div><dt>Лучший результат</dt><dd className="num">{record.best}</dd></div>

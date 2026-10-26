@@ -1,3 +1,4 @@
+import {TURNING_LESSONS,trainingLevel,type TurningLesson} from '../turningTraining';
 import { exampleLevel, operations, placeObject, type Level } from '../level';
 import type { IconName } from '../ui/Icon';
 
@@ -16,6 +17,7 @@ export const DIRECTIONS: Direction[] = [
 
 export interface Zone { id: string; title: string; requiresMissions: string[]; minLevel: number }
 export const ZONES: Zone[] = [
+  {id:'turning-school',title:'Школа точения',requiresMissions:[],minLevel:1},
   { id: 'shop', title: 'Учебный цех', requiresMissions: [], minLevel: 1 },
   { id: 'lathe-area', title: 'Токарный участок', requiresMissions: ['two-sections'], minLevel: 3 },
 ];
@@ -33,6 +35,7 @@ export interface MissionSpec {
   difficulty: 1 | 2 | 3;
   minutes: number;
   requires: string[];
+  training?:TurningLesson;
   build: () => Level;
 }
 export interface PlannedSpec { id: string; direction: DirectionId; title: string; note: string }
@@ -81,6 +84,7 @@ export function turningLevel(recipe: TurningRecipe): Level {
 const steel = (diameter: number, length: number) => ({ name: 'Стальная заготовка', material: 'Сталь', diameter, length });
 
 export const MISSIONS: MissionSpec[] = [
+
   {
     id: 'precision', direction: 'machining', zone: 'shop', difficulty: 1, minutes: 3, requires: [],
     title: 'Точность решает',
@@ -154,6 +158,7 @@ export const MISSIONS: MissionSpec[] = [
       grid: { width: 6, height: 5 }, placements: { blank: [0, 3], lathe: [3, 2], warehouse: [5, 1] },
     }),
   },
+  ...TURNING_LESSONS.map((lesson,i):MissionSpec=>({id:lesson.id,title:lesson.title,direction:'machining',zone:'turning-school',difficulty:i<2?1:i<4?2:3,minutes:5,requires:i?[TURNING_LESSONS[i-1].id]:[],order:lesson.targets.map(t=>t.kind==='face'?`Длина после подрезки: ${t.length} мм`:`Обработанный участок Z${t.z0}–${t.z1}: Ø${t.diameter} мм`).join('; ')+'. Сталь Ø20 × 60 мм; патрон Z0–10. Плечо не считается обработанным участком.',teaches:lesson.explanation,training:lesson,build:()=>trainingLevel(lesson)})),
 ];
 
 /** Направления, для которых механики ещё нет в коде. Показываются как «запланировано» и не запускаются. */

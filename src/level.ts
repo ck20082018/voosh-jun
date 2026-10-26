@@ -1,3 +1,4 @@
+import type {SurfacePass,TrainingStep} from './turningTraining';
 export const NODE_TYPES = ['start', 'intro', 'blank', 'tool', 'process', 'lathe', 'part', 'warehouse', 'task', 'wait', 'check', 'finish', 'hint', 'after', 'map', 'catalog', 'table'] as const;
 export type NodeKind = typeof NODE_TYPES[number];
 export type PortType = 'execution' | 'blank' | 'tool' | 'process' | 'machine' | 'part' | 'warehouse' | 'event' | 'actual-part' | 'catalog';
@@ -15,6 +16,8 @@ export type Section = {
 export type OperationSpec = {
     id: string;
     kind: 'turning';
+    surfacePass?: SurfacePass;
+    training?: TrainingStep;
     diameter: number;
     length: number;
     seconds: number;

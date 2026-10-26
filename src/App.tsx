@@ -10,6 +10,7 @@ import { Icon, type IconName } from './ui/Icon';
 import { Button } from './ui/primitives';
 import { Hub } from './screens/Hub';
 import { MissionMap } from './screens/MissionMap';
+import { MissionLauncher } from './screens/MissionLauncher';
 import { MissionScreen } from './screens/MissionScreen';
 import { Olympiads, stageState } from './screens/Olympiads';
 import { ProfileScreen } from './screens/Profile';
@@ -123,7 +124,7 @@ export function App() {
     case 'editor': content = <Suspense fallback={<div className="scene-loading" role="status">Загрузка редактора…</div>}><EditorApp /></Suspense>; break;
     case 'mission':
       fullscreen = true;
-      content = <MissionPlay id={route[1] ?? ''} attempt={attempt} profile={profile} motion={motion} onMotion={setMotion}
+      content = <MissionPlay key={`${route[1]}:${attempt}`} id={route[1] ?? ''} attempt={attempt} profile={profile} motion={motion} onMotion={setMotion}
         onStarted={id => commit(markStarted(profileRef.current, id))} onFinished={finishMission} />;
       break;
     case 'olympiad':
@@ -184,7 +185,7 @@ function MissionPlay({ id, attempt, profile, motion, onMotion, onStarted, onFini
   if (gate) return <Blocked title="Миссия закрыта" text={gate} backHash="#/map" backLabel="К карте миссий" />;
   const direction = DIRECTIONS.find(d => d.id === mission.direction)?.title ?? '';
   return (
-    <MissionScreen key={`${id}:${attempt}`} level={level} mode="training" title={mission.title} eyebrow={`Миссия ${MISSIONS.indexOf(mission) + 1} · ${direction}`}
+    <MissionLauncher training={mission.training} key={`${id}:${attempt}`} level={level} mode="training" title={mission.title} eyebrow={`Миссия ${MISSIONS.indexOf(mission) + 1} · ${direction}`}
       motion={motion} onMotion={onMotion} onStarted={() => onStarted(id)} onExit={() => navigate(`#/map/${id}`)} onFinished={session => onFinished(session, id)} />
   );
 }

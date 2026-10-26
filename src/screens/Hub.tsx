@@ -1,3 +1,4 @@
+import {TurningBlueprint} from './TurningWorkview';
 import { useMemo } from 'react';
 import { DIRECTIONS, MISSIONS, PLANNED, type MissionSpec } from '../platform/missions';
 import { OLYMPIADS } from '../platform/olympiads';
@@ -115,7 +116,7 @@ function Hero({ mission, profile, allDone }: { mission: MissionSpec | null; prof
         <div className="hero__meta"><span><Icon name="clock" size={16} /> около {mission.minutes} мин</span><span><Difficulty value={mission.difficulty} /> сложность</span></div>
         <div className="hero__actions"><Button variant="primary" size="lg" iconRight="next" onClick={() => navigate(`#/mission/${mission.id}`)}>{status === 'in-progress' ? 'Продолжить миссию' : 'Начать миссию'}</Button></div>
       </div>
-      <div className="hero__drawing"><DrawingSheet title={drawing.title} blank={drawing.blank} ops={drawing.ops} /></div>
+      <div className="hero__drawing"><>{mission.training?<TurningBlueprint geometry={mission.training.requirements} title={mission.title}/>:<DrawingSheet title={drawing.title} blank={drawing.blank} ops={drawing.ops} />}</></div>
     </section>
   );
 }

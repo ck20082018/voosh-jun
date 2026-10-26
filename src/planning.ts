@@ -1,3 +1,4 @@
+import {checkTrainingPlan,type TurningLesson} from './turningTraining';
 import { makeNode, defaultOperation, catalogIds, type Level, type OperationSpec } from './level';
 import { catalogReferences, allowedOperations } from './catalog';
 import { validateLevel, operationErrors } from './validation';
@@ -173,7 +174,7 @@ export class PlanningCore {
     private scene: Level | null = null;
     private attempt = 0;
     private disposed = false;
-    constructor(level: Level) { const issues = validateLevel(level); if (level.productionMode !== 'player' || issues.length)
+    constructor(level: Level, readonly training?:TurningLesson) { const issues = validateLevel(level); if (level.productionMode !== 'player' || issues.length)
         throw new Error(issues.map(e => e.message).join('\n') || 'Требуется режим «План игрока».'); this.author = structuredClone(level); }
     get definition(): Level { return structuredClone(this.author); }
     get plan(): PlayerPlan { return structuredClone(this.draft); }
@@ -181,7 +182,7 @@ export class PlanningCore {
     get runtime(): FactoryCore | null { return this.engine; }
     get runtimeLevel(): Level | null { return this.scene ? structuredClone(this.scene) : null; }
     get editing() { return !this.disposed && !this.engine; }
-    get preview(): PlanPreview { return checkPlayerPlan(this.author, this.draft); }
+    get preview(): PlanPreview { return this.training?checkTrainingPlan(this.author,this.draft,this.training):checkPlayerPlan(this.author, this.draft); }
     get mapScene(): Level { return planScene(this.author, this.draft); }
     setPlan(plan: PlayerPlan): boolean {
         if (!this.editing || !plan || !Array.isArray(plan.operations) || plan.operations.length > 20)
@@ -207,11 +208,17 @@ export class PlanningCore {
         const preview = this.preview;
         if (preview.errors.length)
             return false;
+        if(this.training&&checkTrainingPlan(this.author,this.draft,this.training).maxLoad>100)return false;
         const plan = this.plan, materialized = materialize(this.author, plan, preview, ++this.attempt);
         const compiled = compileLevel(materialized.level);
         if (compiled.mode !== 'production')
             return false;
         compiled.resultMode = 'geometry';
+        if(this.training)for(const wait of Object.values(compiled.waits)){
+          wait.requirements.geometry=structuredClone(this.training.requirements);
+          wait.requirements.minQuality=this.training.minQuality;
+          wait.requirements.maxLastCutDepth=this.training.minQuality? .25:undefined;
+        }
         const m = compiled.machines[materialized.machineId];
         m.operationTools = structuredClone(preview.tools);
         const runtime = new FactoryCore(compiled);
@@ -230,7 +237,11 @@ export class PlanningCore {
             differences.push({ characteristic: 'Материал', expected: expected.material, actual: actual.material });
         if (actual.shape !== expected.shape)
             differences.push({ characteristic: 'Форма', expected: expected.shape === 'cylinder' ? 'Цилиндр' : 'Брусок', actual: actual.shape === 'cylinder' ? 'Цилиндр' : 'Брусок' });
-        if (!matchesFreeResult({ ...actual, material: expected.material }, expected))
+        if(expected.minQuality!==undefined&&(actual.surfaceQuality??0)<expected.minQuality)
+            differences.push({characteristic:'Качество последнего реального прохода',expected:`не ниже ${expected.minQuality}/100`,actual:`${(actual.surfaceQuality??0).toFixed(0)}/100`});
+        if(expected.maxLastCutDepth!==undefined&&(actual.lastCutDepth??Infinity)>expected.maxLastCutDepth)
+            differences.push({characteristic:'Снятие чистовым проходом по радиусу',expected:`не более ${expected.maxLastCutDepth} мм`,actual:`${actual.lastCutDepth??'не было резания'} мм`});
+        if (!matchesFreeResult({ ...actual, material: expected.material }, {...expected,minQuality:undefined,maxLastCutDepth:undefined}))
             differences.push({ characteristic: 'Размеры и участки', expected: dimensionText(expected) + '; ' + expected.sections.map(s => `Ø${s.diameter} × ${s.length}`).join(', '), actual: dimensionText(actual) + '; ' + actual.sections.map(s => `Ø${s.diameter} × ${s.length}`).join(', ') });
         return { success, expected: structuredClone(expected), actual: structuredClone(actual), differences };
     }

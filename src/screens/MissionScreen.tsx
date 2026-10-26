@@ -15,6 +15,8 @@ const Workshop = lazy(() => import('../Workshop').then(module => ({ default: mod
 
 export interface MissionScreenProps {
   level: Level;
+  /** External runtime is owned by PlanningCore. */
+  runtime?:FactoryCore;
   mode: SessionMode;
   title: string;
   eyebrow: string;
@@ -36,12 +38,12 @@ type DialogKind = null | 'pause' | 'exit' | 'settings';
 export function MissionScreen(props: MissionScreenProps) {
   const { level, mode, timeLimitSec = null } = props;
   const built = useMemo(() => {
-    try { return { session: new MissionSession(new FactoryCore(compileLevel(structuredClone(level))), mode, { coaching: true, timeLimitSec }), error: '' }; }
+    try { return { session: new MissionSession(props.runtime??new FactoryCore(compileLevel(structuredClone(level))), mode, { coaching: true, timeLimitSec }), error: '' }; }
     catch (error) { return { session: null, error: error instanceof Error ? error.message : String(error) }; }
     // Сессия создаётся один раз для экрана: родитель меняет key, чтобы начать заново.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  useEffect(() => () => built.session?.dispose(), [built]);
+  useEffect(() => () => {if(props.runtime)built.session?.detach();else built.session?.dispose();}, [built]);
   if (!built.session) {
     return (
       <main className="mission mission--error"><div className="center-card surface"><Icon name="alert" size={28} /><h1 className="t-h2">Уровень не запускается</h1><p className="t-dim">{built.error}</p><Button variant="primary" onClick={props.onExit}>Назад</Button></div></main>
