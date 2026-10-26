@@ -69,7 +69,7 @@ test('экраны платформы отрисовываются без бра
   const empty = defaultProfile();
   let seeded = empty;
   const mission = MISSIONS[0];
-  const session = finished(mission.build(), 'training');
+  const session = finished(mission.build!(), 'training');
   const summary = { ...session.summary(), timeSec: 20 };
   seeded = applyMissionAttempt(seeded, mission.id, summary, computeScore(summary), summary.opsTotal).profile;
   for (const profile of [empty, seeded]) {
@@ -87,7 +87,8 @@ test('экраны платформы отрисовываются без бра
   }
   const map = renderToString(createElement(MissionMap, { profile: seeded }));
   assert.match(map, /Механическая обработка/);
-  assert.match(map, /Запланировано/);
+  assert.doesNotMatch(map, /Запланировано/);
+  assert.match(map, /Редуктор по чертежу/);
 });
 
 test('профиль: сохранение и загрузка сохраняют отметку прерванного этапа', () => {

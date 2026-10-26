@@ -6,6 +6,7 @@ import { ACHIEVEMENTS, isPassed, levelFromXp, missionStatus, nextRank, rankFor, 
 import { stageKey } from '../platform/olympiads';
 import { Icon } from '../ui/Icon';
 import { Button, Chip, Meter, Ring } from '../ui/primitives';
+import { ExerciseDiagram } from './ExerciseDiagram';
 import { DrawingSheet } from './DrawingSheet';
 import { Difficulty, drawingOf, navigate, STATUS_TONE } from './shared';
 
@@ -96,11 +97,11 @@ export function Hub({ profile }: { profile: Profile }) {
 }
 
 function Hero({ mission, profile, allDone }: { mission: MissionSpec | null; profile: Profile; allDone: boolean }) {
-  const drawing = useMemo(() => (mission ? drawingOf(mission.build()) : null), [mission]);
-  if (!mission || !drawing) {
+  const drawing = useMemo(() => (mission?.build ? drawingOf(mission.build()) : null), [mission]);
+  if (!mission || (!drawing && !mission.exercise)) {
     return (
       <section className="surface hero hero--done" aria-label="Следующая миссия">
-        <div><span className="eyebrow">Все доступные задания пройдены</span><h2 className="t-h2">Хорошая смена</h2><p className="t-dim">{allDone ? 'Новые задания откроются вместе с новыми механиками. Можно улучшить результаты на карте или попробовать олимпиаду.' : ''}</p></div>
+        <div><span className="eyebrow">Все доступные задания пройдены</span><h2 className="t-h2">Хорошая смена</h2><p className="t-dim">{allDone ? 'Все направления пройдены. Можно улучшить результаты на карте или попробовать олимпиаду.' : ''}</p></div>
         <div className="hero__actions"><Button variant="primary" size="lg" icon="map" onClick={() => navigate('#/map')}>К карте миссий</Button></div>
       </section>
     );
@@ -116,7 +117,7 @@ function Hero({ mission, profile, allDone }: { mission: MissionSpec | null; prof
         <div className="hero__meta"><span><Icon name="clock" size={16} /> около {mission.minutes} мин</span><span><Difficulty value={mission.difficulty} /> сложность</span></div>
         <div className="hero__actions"><Button variant="primary" size="lg" iconRight="next" onClick={() => navigate(`#/mission/${mission.id}`)}>{status === 'in-progress' ? 'Продолжить миссию' : 'Начать миссию'}</Button></div>
       </div>
-      <div className="hero__drawing"><>{mission.training?<TurningBlueprint geometry={mission.training.requirements} title={mission.title} display={mission.training.drawing}/>:<DrawingSheet title={drawing.title} blank={drawing.blank} ops={drawing.ops} requirements={drawing.requirements} />}</></div>
+      <div className="hero__drawing">{mission.exercise ? <ExerciseDiagram exercise={mission.exercise} /> : mission.training ? <TurningBlueprint geometry={mission.training.requirements} title={mission.title} display={mission.training.drawing}/> : drawing && <DrawingSheet title={drawing.title} blank={drawing.blank} ops={drawing.ops} requirements={drawing.requirements} />}</div>
     </section>
   );
 }

@@ -4,6 +4,8 @@ import { olympiadById, stageKey } from './platform/olympiads';
 import { computeScore } from './platform/scoring';
 import { applyMissionAttempt, applyStageAttempt, defaultProfile, loadProfile, lockReason, markStageStarted, markStarted, saveProfile, missionStatus, isPassed, type AttemptResult, type Profile } from './platform/progress';
 import type { MissionSession } from './platform/session';
+import type { AttemptReport } from './platform/exerciseSession';
+import { ExerciseScreen } from './screens/ExerciseScreen';
 import type { ResultData } from './platform/result';
 import { applyMotionSetting, type MotionSetting } from './ui/motion';
 import { Icon, type IconName } from './ui/Icon';
@@ -70,7 +72,7 @@ export function App() {
     const ordered = [...MISSIONS.slice(idx + 1), ...MISSIONS.slice(0, idx + 1)];
     return ordered.find(m => m.id !== currentId && !isPassed(p, m.id) && missionStatus(p, m) !== 'locked') ?? null;
   };
-  const buildResult = (session: MissionSession, res: AttemptResult, before: Profile, extra: Pick<ResultData, 'kind' | 'title' | 'next' | 'nextLabel'>): ResultData => {
+  const buildResult = (session: AttemptReport, res: AttemptResult, before: Profile, extra: Pick<ResultData, 'kind' | 'title' | 'next' | 'nextLabel'>): ResultData => {
     const summary = session.summary();
     return {
       ...extra, ended: session.ended ?? 'abandoned', score: computeScore(summary), summary,
@@ -79,7 +81,7 @@ export function App() {
     };
   };
 
-  const finishMission = (session: MissionSession, id: string) => {
+  const finishMission = (session: AttemptReport, id: string) => {
     const mission = missionById(id)!;
     const before = profileRef.current;
     const summary = session.summary();
@@ -178,13 +180,15 @@ function Blocked({ title, text, backHash, backLabel }: { title: string; text: st
 
 interface PlayCommon { profile: Profile; motion: MotionSetting; onMotion: (m: MotionSetting) => void }
 
-function MissionPlay({ id, attempt, profile, motion, onMotion, onStarted, onFinished }: PlayCommon & { id: string; attempt: number; onStarted: (id: string) => void; onFinished: (session: MissionSession, id: string) => void }) {
+function MissionPlay({ id, attempt, profile, motion, onMotion, onStarted, onFinished }: PlayCommon & { id: string; attempt: number; onStarted: (id: string) => void; onFinished: (session: AttemptReport, id: string) => void }) {
   const mission = missionById(id);
-  const level = useMemo(() => mission?.build(), [mission, attempt]);
+  const level = useMemo(() => mission?.build?.(), [mission, attempt]);
   // Доступность проверяется один раз при входе: прогресс внутри попытки её не прерывает.
   const [gate] = useState(() => (mission ? lockReason(profile, mission) : 'Такой миссии нет.'));
-  if (!mission || !level) return <Blocked title="Миссия не найдена" text="Выберите задание на карте миссий." backHash="#/map" backLabel="К карте миссий" />;
+  if (!mission) return <Blocked title="Миссия не найдена" text="Выберите задание на карте миссий." backHash="#/map" backLabel="К карте миссий" />;
   if (gate) return <Blocked title="Миссия закрыта" text={gate} backHash="#/map" backLabel="К карте миссий" />;
+  if (mission.exercise) return <ExerciseScreen mission={mission} exercise={mission.exercise} onStarted={() => onStarted(id)} onFinished={report => onFinished(report, id)} onExit={() => navigate(`#/map/${id}`)} />;
+  if (!level) return null;
   const direction = DIRECTIONS.find(d => d.id === mission.direction)?.title ?? '';
   return (
     <MissionLauncher training={mission.training} key={`${id}:${attempt}`} level={level} mode="training" title={mission.title} eyebrow={`Миссия ${MISSIONS.indexOf(mission) + 1} · ${direction}`}
