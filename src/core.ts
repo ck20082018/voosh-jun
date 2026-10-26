@@ -1,3 +1,5 @@
+import {blankPart} from './manufacturing';
+import {operationLabel} from './turningTools';
 import type { ExecutableLevel, Operation, ProductionLevel, MachineDefinition, WarehouseDefinition, HintDefinition } from './compiler';
 import { applyOperation, matches, matchesFreeResult, matchesConfiguration, dimensions, type Part, type Requirements } from './manufacturing';
 import { operationCompatibility, type ItemSource } from './productionGraph';
@@ -133,7 +135,7 @@ export class FactoryCore {
         this.sequence = 0;
         this.journal = [];
         const production = this.level.mode === 'production' ? this.level : null;
-        this.value = { item: production ? { ...dimensions(production.blank), blankId: production.blank.id, material: production.blank.material, sections: [], operationIds: [] } : null, location: production ? { kind: 'table', id: production.blank.id } : null, machines: production ? Object.fromEntries(Object.keys(production.machines).map(id => [id, { stage: 'empty', operationIndex: 0, elapsed: 0, itemId: null }])) : {}, warehouses: production ? Object.fromEntries(Object.keys(production.warehouses).map(id => [id, { itemId: null, count: 0 }])) : {}, waitItems: {}, lastMachineId: null, selected: null, target: null, transfer: null, activeNodeId: this.level.entry, intro: false, playing: false, completed: false, disposed: false, goal: '', instruction: '', success: '', checkMessage: '', activeHint: null, hintQueue: [], panelHints: [], error: '' };
+        this.value = { item: production ? blankPart(production.blank) : null, location: production ? { kind: 'table', id: production.blank.id } : null, machines: production ? Object.fromEntries(Object.keys(production.machines).map(id => [id, { stage: 'empty', operationIndex: 0, elapsed: 0, itemId: null }])) : {}, warehouses: production ? Object.fromEntries(Object.keys(production.warehouses).map(id => [id, { itemId: null, count: 0 }])) : {}, waitItems: {}, lastMachineId: null, selected: null, target: null, transfer: null, activeNodeId: this.level.entry, intro: false, playing: false, completed: false, disposed: false, goal: '', instruction: '', success: '', checkMessage: '', activeHint: null, hintQueue: [], panelHints: [], error: '' };
         this.emit({ type: 'reset', message: 'Новый запуск: состояние сброшено' });
         if (run === this.runId)
             this.activate();
@@ -410,7 +412,7 @@ export class FactoryCore {
                 }
                 else
                     r.stage = 'finished';
-                this.emit({ type: 'processing-finished', objectId: id, machineId: id, itemId: s.item.blankId, operationId: op.id,toolId:(m.operationTools?.[op.id]??m.tool).id, part: s.item, message: `Операция ${index + 1} завершена: ${op.kind === 'turning' ? op.surfacePass ? op.surfacePass.target.kind==='face' ? `подрезка до длины ${op.surfacePass.target.length} мм` : `проход до Ø${op.surfacePass.target.diameter} мм на Z${op.surfacePass.target.z0}–${op.surfacePass.target.z1}` : `Ø${op.diameter} × ${op.length} мм` : `снято ${op.depth} мм`}` });
+                this.emit({ type: 'processing-finished', objectId: id, machineId: id, itemId: s.item.blankId, operationId: op.id,toolId:(m.operationTools?.[op.id]??m.tool).id, part: s.item, message: `Операция ${index + 1} завершена: ${op.kind === 'turning' ? op.surfacePass ? operationLabel(op.surfacePass.target) : `Ø${op.diameter} × ${op.length} мм` : `снято ${op.depth} мм`}` });
                 if (run !== this.runId || this.value.disposed)
                     return;
             }
