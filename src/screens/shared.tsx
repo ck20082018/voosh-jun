@@ -1,5 +1,5 @@
 import {dimensions} from '../manufacturing';
-import {operations} from '../level';
+import {operations,sections} from '../level';
 import { useEffect, useState, type ReactNode } from 'react';
 import type { Level } from '../level';
 import type { MissionSpec } from '../platform/missions';
@@ -7,10 +7,12 @@ import type { MissionStatus } from '../platform/progress';
 import { Icon, type IconName } from '../ui/Icon';
 
 /** Данные для чертежа, восстановленные из уровня (нужны на хабе и карте, где ядро не запущено). */
-export function drawingOf(level: Level): { blank: import('../manufacturing').Blank; ops: import('../level').OperationSpec[]; title: string } {
+export function drawingOf(level: Level): { blank: import('../manufacturing').Blank; ops: import('../level').OperationSpec[]; title: string; requirements:import('../manufacturing').Requirements } {
   const blank = level.nodes.find(n => n.type === 'blank');
+  const part=level.nodes.find(n=>n.type==='part')!;
   return {
     title: level.name,
+    requirements:{...dimensions(part.params),id:part.id,name:String(part.params.name),material:String(part.params.material),sections:sections(part)},
     blank: {...dimensions(blank!.params),id:blank!.id,name:String(blank!.params.name),material:String(blank!.params.material)},
     ops: level.nodes.filter(n=>n.type==='process').flatMap(n=>operations(n)),
   };

@@ -6,6 +6,7 @@ import './ui/tokens.css';
 import './ui/ui.css';
 import './scene/scene.css';
 import './screens/drawing.css';
+import './screens/interactive-drawing.css';
 import './screens/shell.css';
 import './screens/mission.css';
 import './editor.css';

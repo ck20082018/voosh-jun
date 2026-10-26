@@ -1,4 +1,5 @@
 import { applyTurningGeometry, validateGeometry, migrateLegacyProfile, sameGeometry, type TurningGeometry, type TurningSetup, type TurningOperation, type GeometryResult } from './turningGeometry';
+import {checkTurningTool,findTurningTool} from './turningTools';
 import type { OperationSpec, Params, Section } from './level';
 export type Dimensions = {
     shape: 'cylinder';
@@ -11,6 +12,7 @@ export type Dimensions = {
     height: number;
 };
 export type Blank = Dimensions & {
+    initialBoreDiameter?:number;
     id: string;
     name: string;
     material: string;
@@ -43,9 +45,13 @@ export function sameDimensions(a: Dimensions, b: Dimensions): boolean { return a
 export function sameOperations(actual: readonly OperationSpec[], expected: readonly OperationSpec[]): boolean { return actual.length === expected.length && actual.every((a, i) => { const b = expected[i]; return a.kind === b.kind && near(a.seconds, b.seconds) && (a.kind === 'turning' && b.kind === 'turning' ? near(a.diameter, b.diameter) && near(a.length, b.length) : a.kind === 'milling' && b.kind === 'milling' && near(a.depth, b.depth)); }); }
 export function applyOperation(blank: Blank, previous: Part | null, op: OperationSpec): Part {
     if (op.kind === 'turning' && op.surfacePass) {
-        const p:Part=previous??{...blank,blankId:blank.id,sections:[],operationIds:[]};
+        const p:Part=previous??blankPart(blank);
         const pass=op.surfacePass;
-        const result=applyTurningOperation(p,{chuckSide:'z0',gripLength:pass.grip},pass.target,op.id);
+        const beforeGeometry=geometryOf(p);
+        if(!beforeGeometry.ok)throw new Error(beforeGeometry.error.message);
+        if(!pass.toolId&&pass.target.kind!=='outside-turn'&&pass.target.kind!=='face')throw new Error('Для новой операции необходимо явно выбрать инструмент.');
+        if(pass.toolId){const check=checkTurningTool(beforeGeometry.value,pass.target,findTurningTool(pass.toolId));if(!check.ok)throw new Error(check.error.message);}
+        const result=applyTurningOperation(p,pass.setup??{chuckSide:'z0',gripLength:pass.grip},pass.target,op.id);
         if(!result.ok)throw new Error(result.error.message);
         const before=geometryOf(p),after=geometryOf(result.value);
         if(before.ok&&after.ok&&!sameGeometry(before.value,after.value)){
@@ -53,7 +59,7 @@ export function applyOperation(blank: Blank, previous: Part | null, op: Operatio
         }
         return result.value;
     }
-    const base: Part = previous ? structuredClone(previous) : { ...(blank.shape === 'cylinder' ? { shape: 'cylinder' as const, diameter: blank.diameter, length: blank.length } : { shape: 'block' as const, length: blank.length, width: blank.width, height: blank.height }), blankId: blank.id, material: blank.material, sections: [], operationIds: [] };
+    const base: Part = previous ? structuredClone(previous) : blankPart(blank);
     if (op.kind === 'turning' && base.shape === 'cylinder') {
         if (!Number.isFinite(op.diameter) || op.diameter <= 0 || !Number.isFinite(op.length) || op.length <= 0 || blank.shape !== 'cylinder' || op.diameter > blank.diameter)
             throw new Error('Точение требует положительных размеров и не может увеличивать исходный диаметр.');
@@ -142,4 +148,14 @@ export function applyTurningRoute(part: Part, setup: TurningSetup, operations: r
   current=next.value;
  }
  return {ok:true,value:current};
+}
+
+/** Tube stock is explicit; solid/rectangular blanks keep their existing representation. */
+export function blankPart(blank:Blank):Part {
+ const part:Part={...dimensions(blank),blankId:blank.id,material:blank.material,sections:[],operationIds:[]};
+ if(blank.initialBoreDiameter!==undefined){
+  if(blank.shape!=='cylinder'||!Number.isFinite(blank.initialBoreDiameter)||blank.initialBoreDiameter<=0||blank.initialBoreDiameter>blank.diameter-2)throw new Error('Исходное отверстие должно оставлять не менее 1 мм стенки.');
+  part.geometry={length:blank.length,spans:[{z0:0,z1:blank.length,outer0:blank.diameter/2,outer1:blank.diameter/2,inner0:blank.initialBoreDiameter/2,inner1:blank.initialBoreDiameter/2}]};
+ }
+ return part;
 }

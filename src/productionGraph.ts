@@ -1,3 +1,5 @@
+import {blankPart} from './manufacturing';
+import {findTurningTool} from './turningTools';
 import { sourceNode, operations, type Level, type LevelNode, type OperationSpec } from './level';
 import { dimensions, applyOperation, near, type Blank, type Part } from './manufacturing';
 export type ItemSource = {
@@ -26,7 +28,7 @@ export function incomingPart(level: Level, machine: LevelNode, stack = new Set<s
     if (!node)
         throw new Error('Не подключена исходная заготовка станка.');
     if (node.type === 'blank')
-        return { ...dimensions(node.params), blankId: node.id, material: String(node.params.material), sections: [], operationIds: [] };
+        return blankPart({...dimensions(node.params),id:node.id,name:String(node.params.name),material:String(node.params.material),...(node.params.initialBoreDiameter!==undefined?{initialBoreDiameter:Number(node.params.initialBoreDiameter)}:{})});
     const source = itemSource(node);
     const producer = source.kind === 'wait' ? requirementsMachine(level, node) : warehouseProducer(level, node.id);
     if (!producer)
@@ -41,7 +43,7 @@ export function operationCompatibility(part: Part, kind: string, tool: {
     if(ops.some(o=>o.kind==='turning'&&o.surfacePass)){
       let current=structuredClone(part);
       for(const op of ops){
-        if(op.kind!=='turning'||!op.surfacePass||kind!=='lathe'||tool.category!=='turning'||tool.kind!==(op.surfacePass.target.kind==='face'?'facing':'passing'))return ['Несовместимый инструмент или станок для поверхностной операции.'];
+        if(op.kind!=='turning'||!op.surfacePass||kind!=='lathe'||tool.category!=='turning'||tool.kind!==(op.surfacePass.toolId?findTurningTool(op.surfacePass.toolId)?.kind:op.surfacePass.target.kind==='face'?'facing':'passing')&&ops.length===1)return ['Несовместимый инструмент или станок для поверхностной операции.'];
         if(op.surfacePass.load>100)return ['Перегрузка: уменьшите режимы до запуска.'];
         try{current=applyOperation({...dimensions(current),id:current.blankId,name:'Деталь',material:current.material},current,op);}catch(e){return [(e as Error).message];}
       }return [];
