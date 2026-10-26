@@ -43,7 +43,7 @@ export function TaskSheet({ session, collapsed, onToggle }: { session: MissionSe
       {!collapsed && (
         <div className="task-sheet__body scroll-y">
           {s.instruction && <p className="t-small t-dim">{s.instruction}</p>}
-          <DrawingSheet title={session.core.level.name} blank={r.blank} ops={r.operations} requirements={Object.values(r.waits).at(-1)?.requirements} result={s.item} actual={{ doneOps: done, progress: session.progress }} />
+          <DrawingSheet display={session.core.level.drawing} title={session.core.level.name} blank={r.blank} ops={r.operations} requirements={Object.values(r.waits).at(-1)?.requirements} result={s.item} actual={{ doneOps: done, progress: session.progress }} />
           <section aria-label="Операции">
             <h3 className="sheet-h">Операции</h3>
             <ol className="ops">
@@ -268,7 +268,7 @@ export function Briefing({ session, level, onStart, onBack, timeLimitSec }: { se
             <Switch checked={session.coaching} onChange={v => session.setCoaching(v)} label="Обучение с подсказками" hint="Выключите, если уже знаете порядок работы. Самостоятельная работа даёт больше баллов." />
           )}
         </div>
-        <DrawingSheet title={level.name} blank={r.blank} ops={r.operations} requirements={Object.values(r.waits).at(-1)?.requirements} />
+        <DrawingSheet display={level.drawing} title={level.name} blank={r.blank} ops={r.operations} requirements={Object.values(r.waits).at(-1)?.requirements} />
       </div>
       <div className="dialog__actions">
         <Button variant="quiet" icon="back" onClick={onBack}>Назад</Button>

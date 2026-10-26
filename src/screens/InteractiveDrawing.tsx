@@ -1,12 +1,14 @@
 import {threadLabel,threadDepth,threadRecipe} from '../threading';
 import {ThreadLesson} from './ThreadLesson';
-import {useEffect,useId,useState} from 'react';
+import {lazy,Suspense,useEffect,useId,useState} from 'react';
+const PartViewer=lazy(()=>import('./PartViewer'));
+const PartInspector=lazy(()=>import('./PartInspector'));
 import type {TurningGeometry} from '../turningGeometry';
-import {clippedSpans,compareDrawing,dimensionText,drawingDimensions,drawingFrame,materialStrips,meridianPaths,mm,pointsPath,projectMeridian,projectVolume,sectionContours,validDrawing,volumeContours,volumeFaces,type DrawingDisplay,type DrawingFrame,type DrawingSelection,type DrawingView} from '../drawingGeometry';
+import {clippedSpans,compareDrawing,dimensionText,drawingDimensions,drawingFrame,materialStrips,meridianPaths,mm,pointsPath,projectMeridian,projectVolume,sectionContours,validDrawing,volumeFaces,type DrawingDisplay,type DrawingFrame,type DrawingSelection,type DrawingView} from '../drawingGeometry';
 const VIEW_NAMES:Record<DrawingView,string>={main:'Главный вид',end:'Свободный торец',section:'Продольный разрез',detail:'Увеличенная деталь',volume:'Объёмная модель'};
 const overlaps=(s:{z0:number;z1:number},r:DrawingSelection|null)=>!!r&&(s.z0===s.z1?s.z0>=r.z0&&s.z0<=r.z1:Math.min(s.z1,r.z1)>Math.max(s.z0,r.z0));
 export interface InteractiveDrawingProps {
- geometry:TurningGeometry; title:string; display?:DrawingDisplay;
+ geometry:TurningGeometry; title:string; material?:string; display?:DrawingDisplay;
  result?:TurningGeometry; selection?:DrawingSelection|null; onSelect?:(selection:DrawingSelection|null)=>void;
  tool?:{kind?:'drill'|'bore';z:number;radius:number;direction:'z'|'x';rotating:boolean};
 }
@@ -14,7 +16,8 @@ export interface InteractiveDrawingProps {
 export function InteractiveDrawing(props:InteractiveDrawingProps){
  const {geometry,result,title,display={},tool}=props;
  const uid=useId();
- const [local,setLocal]=useState<DrawingSelection|null>(null),[view,setView]=useState<DrawingView>(()=>geometry.spans.some(s=>s.inner0>0||s.inner1>0)?'section':'main'),[zoom,setZoom]=useState(1),[compare,setCompare]=useState(!!result),[cutaway,setCutaway]=useState(true);
+ const [inspector,setInspector]=useState(false);
+ const [local,setLocal]=useState<DrawingSelection|null>(null),[view,setView]=useState<DrawingView>(()=>geometry.spans.some(s=>s.inner0>0||s.inner1>0)?'section':'main'),[zoom,setZoom]=useState(1),[compare,setCompare]=useState(!!result);
  const requested=props.selection===undefined?local:props.selection;
  const selected=requested&&Number.isFinite(requested.z0)&&Number.isFinite(requested.z1)&&requested.z0>=0&&requested.z1>=requested.z0?requested:null;
  useEffect(()=>{if(selected?.surface==='inner'&&(!display.views||display.views.includes('section')))setView('section');},[selected?.surface,selected?.z0,selected?.z1,display.views]);
@@ -37,21 +40,21 @@ export function InteractiveDrawing(props:InteractiveDrawingProps){
  const highlight=selected?clippedSpans(shown,selected.z0,selected.z1):[];
  const selectedLabel=selected?`Выбран ${selected.surface==='inner'?'внутренний размер':selected.surface==='outer'?'наружный размер':'интервал'} Z${mm(selected.z0)}–${mm(selected.z1)} мм`:'Размер не выбран';
  return <figure className="interactive-drawing" aria-label={title}>
- <figcaption><strong>{title}</strong><span>Размеры в мм · геометрическая учебная схема</span></figcaption>
+ <figcaption><strong>{title}</strong><span>Размеры в мм · рабочая учебная схема</span></figcaption>
  <div className="idraw-toolbar" role="group" aria-label="Представления чертежа">
+ <button type="button" onClick={()=>setInspector(true)}>Чертёж на листе и экспорт</button>
  {views.map(v=><button key={v} type="button" aria-pressed={active===v} onClick={()=>setView(v)}>{VIEW_NAMES[v]}</button>)}
  <button type="button" disabled={zoom>=3} aria-label="Увеличить чертёж" onClick={()=>setZoom(z=>Math.min(3,z+.5))}>+</button><button type="button" disabled={zoom<=.5} aria-label="Уменьшить чертёж" onClick={()=>setZoom(z=>Math.max(.5,z-.5))}>−</button><button type="button" onClick={()=>{setZoom(1);setView(views[0]);select(null);}}>Общий вид</button>
  {result&&<label><input type="checkbox" checked={compare} onChange={e=>setCompare(e.target.checked)}/>Сравнить с заказом</label>}
- {active==='volume'&&hasHole&&<label><input type="checkbox" checked={cutaway} onChange={e=>setCutaway(e.target.checked)}/>Учебное раскрытие полости</label>}
+
  </div>
  {requested&&!selected&&<p role="status">Некорректный интервал операции: исправьте координаты. Геометрия заказа не изменена.</p>}
  <p className="idraw-status" role="status">{selectedLabel} · масштаб {Math.round(zoom*100)}%</p>
- <svg className="idraw-canvas" viewBox="0 0 620 410" role="img" aria-label={`${title} · ${VIEW_NAMES[active]} · ${selectedLabel}`}>
+ {active==='volume'?<Suspense fallback={<p role="status">Загрузка 3D…</p>}><PartViewer geometry={shown} title={title} selection={selected}/></Suspense>:<svg className="idraw-canvas" viewBox="0 0 620 410" role="img" aria-label={`${title} · ${VIEW_NAMES[active]} · ${selectedLabel}`}>
  <defs><pattern id={`${uid}-hatch`} width="7" height="7" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><path d="M0 0V7" stroke="#69788a" strokeWidth="1"/></pattern><clipPath id={`${uid}-clip`}><rect x="10" y="20" width="600" height="365"/></clipPath></defs>
  <g clipPath={`url(#${uid}-clip)`}>
  <g transform={`translate(${cx} ${cy}) scale(${zoom}) translate(${-cx} ${-cy})`}>
- {active==='volume'?<><Volume geometry={shown} frame={frame} cutaway={cutaway&&hasHole} selected={selected}/>{compare&&result&&<g aria-label="Фактическая объёмная форма — пунктир">{volumeContours(result,frame,cutaway&&hasHole).map((path,i)=><path key={i} d={path} fill="none" stroke="#a84228" strokeWidth=".8" strokeDasharray="4 3"/>)}</g>}</>:
- active==='end'?<EndView geometry={shown} frame={frame} selected={selected} result={compare?result:undefined}/>:
+ {active==='end'?<EndView geometry={shown} frame={frame} selected={selected} result={compare?result:undefined}/>:
  <>
  {active==='section'||active==='detail'?<g data-material-region="section">{materialStrips(shown,f).map((path,i)=><path key={i} d={path} fill={`url(#${uid}-hatch)`} stroke="none" data-hatched-material="true"/>)}</g>:<path d={paths.outer} fill="#c9d8de" stroke="#253a50" strokeWidth="2"/>}
  {active==='section'||active==='detail'?<g aria-label="Контуры материала">{sectionContours(shown,f).map((path,i)=><path key={i} d={path} fill="none" stroke="#253a50" strokeWidth="1.7"/>)}</g>:<path d={paths.outer} fill="none" stroke="#253a50" strokeWidth="2"/>}
@@ -68,10 +71,11 @@ export function InteractiveDrawing(props:InteractiveDrawingProps){
  {active==='detail'&&display.detail?.thread&&<g aria-label="Условное обозначение резьбы — не винтовая геометрия"><path d={threadLine(shown,f,display.detail)} stroke="#253a50" strokeWidth="1"/><text x="40" y="62">Резьба условно · P{mm(display.detail.thread.pitch)} мм · {display.detail.thread.surface==='inner'?'внутренняя':'наружная'}</text></g>}
  </>}
  </g></g>
- </svg>
+ </svg>}
+ {inspector&&<Suspense fallback={<p>Загрузка просмотра…</p>}><PartInspector geometry={geometry} result={result} metadata={{title,material:props.material}} settings={display.sheet??{views:views.includes('end')?['end']:[],...(display.detail?{detail:{z0:display.detail.z0,z1:display.detail.z1,scale:2 as const,surface:display.detail.thread?.surface??'outer'}}:{})}} selection={selected} onSelect={select} onClose={()=>setInspector(false)}/></Suspense>}
  {active==='detail'&&shown.threads?.[0]&&<ThreadLesson pitch={shown.threads[0].pitch}/>}
  {active==='detail'&&<p>{display.detail?.label??(focus?'Увеличен выбранный участок':'Выберите размер для увеличения')}. Размеры исходные{focus?', масштаб увеличен':''}. {display.detail?.thread&&'Линия резьбы условная; профиль зубьев и винтовая поверхность не вычисляются.'}</p>}
- {active==='volume'&&<p>Объёмная учебная проекция{cutaway&&hasHole?' с удалённой четвертью для показа внутренней поверхности':''}. Раскрытие не изменяет геометрию детали. {shown.threads?.length?'Штрихи резьбы условны; их число не равно числу витков. Размер и шаг указаны отдельно.':''}</p>}
+ {active==='volume'&&<p>Интерактивная 3D-модель с возможностью продольного среза. Раскрытие не изменяет геометрию детали. {shown.threads?.length?'Штрихи резьбы условны; их число не равно числу витков. Размер и шаг указаны отдельно.':''}</p>}
  {compare&&result&&<p>Заказ — сплошная линия; фактический профиль — пунктир. ✕ означает несовпадение.</p>}
  <div className="idraw-dimensions" aria-label="Размеры детали">
  {dimensions.map(d=>{const diff=compare&&differences.find(x=>x.dimension.id===d.id);const chosen=selected?.id===d.id;return <button type="button" key={d.id} data-dimension-id={d.id} data-mismatch={!!diff} aria-pressed={chosen} onClick={()=>select({...d})}><b>{diff?'✕ ':chosen?'▶ ':''}{d.label??(d.kind==='inner'?'Внутренний диаметр':d.kind==='outer'?'Наружный диаметр':'Длина участка')}</b> {dimensionText(shown,d)}<small>Z{mm(d.z0)}–{mm(d.z1)}{diff?` · факт: ${diff.actual}`:''}</small></button>;})}

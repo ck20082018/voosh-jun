@@ -1,0 +1,16 @@
+/* Scoped to the separate part inspector; workshop presentation is untouched. */
+.part-viewer,.engineering-sheet{margin:12px 0;padding:12px;border:1px solid #adbdc6;border-radius:12px;background:#f7fafc;color:#203149;min-width:0}
+.inspector-toolbar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0}
+.inspector-toolbar label{display:flex;align-items:center;gap:5px}.inspector-toolbar input[type=number]{width:70px}
+.part-viewer__canvas{height:440px;min-height:260px;max-height:70vh;touch-action:none}
+.part-viewer__canvas canvas{display:block;width:100%;height:100%;border-radius:8px;outline-offset:3px}
+.part-viewer:fullscreen{padding:20px;overflow:auto;background:#f7fafc}.part-viewer:fullscreen .part-viewer__canvas{height:75vh}
+.engineering-sheet__scroll{overflow:auto;max-height:75vh;border:1px solid #b6c0c8;background:#e2e8ed}
+.engineering-sheet__paper{display:block;min-width:650px;width:100%;height:auto;background:#fff;color:#000}
+.engineering-sheet__paper [data-dimension]{cursor:pointer}.engineering-sheet__paper [data-dimension]:focus{outline:1px dashed #9e6200}
+.engineering-sheet__selection{fill:none;stroke:#ae6800;stroke-width:1.2;stroke-dasharray:2 1;pointer-events:none}
+.part-inspector-dialog{width:min(1200px,96vw);max-height:94vh;border:1px solid #a6b6c0;border-radius:12px;padding:18px;background:#f7fafc;color:#203149;overflow:auto}
+.part-inspector-dialog::backdrop{background:#11263788}.part-inspector-close{float:right}
+@media(max-width:650px){.part-viewer__canvas{height:320px}.part-inspector-dialog{padding:8px}.engineering-sheet{padding:6px}.engineering-sheet__paper{min-width:500px}}
+.inspector-toolbar button,.inspector-toolbar select,.engineering-sheet fieldset input,.part-inspector-close{font:inherit;background:#fff;color:#203149;border:1px solid #9dafbc;border-radius:6px;padding:7px 10px;line-height:1.3}
+.inspector-toolbar button:hover,.part-inspector-close:hover{background:#e8f1f6}.inspector-toolbar button:disabled{opacity:.55}.engineering-sheet fieldset label{margin-right:12px}

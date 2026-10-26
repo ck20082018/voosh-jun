@@ -4,6 +4,8 @@ export type DrawingView='main'|'end'|'section'|'detail'|'volume';
 export interface DrawingSelection {z0:number;z1:number;surface:'outer'|'inner'|'length';id?:string}
 export interface DrawingDimension extends DrawingSelection {id:string;label?:string;kind:'length'|'outer'|'inner'|'thread'}
 export interface DrawingDisplay {
+ /** Author data; JSON-serializable millimetres on the sheet, independent of part geometry. */
+ sheet?:import('./drawing/sheet').SheetSettings;
  views?:readonly DrawingView[];
  dimensions?:readonly DrawingDimension[];
  detail?:{z0:number;z1:number;label:string;thread?:{pitch:number;surface:'outer'|'inner'}};

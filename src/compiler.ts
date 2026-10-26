@@ -9,6 +9,7 @@ export interface CompiledCheck extends ConfigurationCheck {
     resultRequirements?: Requirements;
 }
 interface Scenario {
+    drawing?:import('./drawingGeometry').DrawingDisplay;
     id: string;
     name: string;
     grid: Level['grid'];
@@ -127,7 +128,7 @@ export function compileLevel(level: Level): ExecutableLevel {
     const hints = Object.fromEntries(d.nodes.filter(n => n.type === 'hint').map(n => [n.id, { id: n.id, title: String(n.params.title), text: String(n.params.text), display: n.params.display as 'panel' | 'modal', confirm: n.params.confirm === true, frequency: n.params.frequency as 'once' | 'each' }]));
     const eventHints = d.edges.filter(e => e.targetHandle === 'event' && d.nodes.find(n => n.id === e.target)?.type === 'hint').map(e => { const n = d.nodes.find(n => n.id === e.source)!; return { hintId: e.target, action: String(n.params.action), objectId: String(n.params.objectId) }; });
     const scenario = d.nodes.filter(n => ['start', 'intro', 'task', 'wait', 'check', 'finish', 'hint'].includes(n.type) && !(n.type === 'hint' && d.edges.some(e => e.target === n.id && e.targetHandle === 'event'))).map(n => ({ id: n.id, type: n.type, params: n.params }));
-    const base: Scenario = { id: d.id, name: d.name, grid: d.grid, placements: d.placements, scenario, entry: one('start').id, next, checks: Object.fromEntries(d.nodes.filter(n => n.type === 'check').map(n => [n.id, configurationCheck(d, n)])), hints, eventHints };
+    const base: Scenario = { ...(d.drawing?{drawing:structuredClone(d.drawing)}:{}), id: d.id, name: d.name, grid: d.grid, placements: d.placements, scenario, entry: one('start').id, next, checks: Object.fromEntries(d.nodes.filter(n => n.type === 'check').map(n => [n.id, configurationCheck(d, n)])), hints, eventHints };
     if (!d.nodes.some(n => n.type === 'task' || n.type === 'wait'))
         return { ...base, mode: 'welcome' };
     const waits: ProductionLevel['waits'] = Object.create(null);

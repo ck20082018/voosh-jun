@@ -29,7 +29,7 @@ export function DrawingSheet(props: DrawingProps) {
     if(!current&&props.actual){current=raw;for(const op of props.ops.slice(0,props.actual.doneOps))current=applyOperation(props.blank,current,op);}
     const actual=current?geometryOf(current):undefined;
     if(actual&&!actual.ok)return <p role="alert">{actual.error.message}</p>;
-    return <div className={props.className}><InteractiveDrawing title={props.title} geometry={required.value} result={actual?.ok?actual.value:undefined} display={props.display} selection={props.selection} onSelect={props.onSelect}/></div>;
+    return <div className={props.className}><InteractiveDrawing material={props.blank.material} title={props.title} geometry={required.value} result={actual?.ok?actual.value:undefined} display={props.display} selection={props.selection} onSelect={props.onSelect}/></div>;
   }
   let part = {...dimensions(props.blank),material:props.blank.material,sections:[],operationIds:[],blankId:props.blank.id} as import('../manufacturing').Part;
   if(props.requirements)part={...props.requirements,blankId:props.blank.id,operationIds:[]};

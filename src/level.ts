@@ -85,6 +85,7 @@ export interface LocatedPlacement extends MapPoint {
 }
 export interface NodeGroup {id:string;name:string;color:string;position:{x:number;y:number};size:{width:number;height:number}}
 export interface Level {
+    drawing?:import('./drawingGeometry').DrawingDisplay;
     version: 4;
     productionMode:'ready'|'player';
     groups:NodeGroup[];
