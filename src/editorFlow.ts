@@ -2,7 +2,7 @@ import {addMap} from './map';
 import type {Node,NodeChange,Edge} from '@xyflow/react';
 import {MarkerType} from '@xyflow/react';
 import {deleteNodes,makeNode,portPair,type Level,type LevelNode,type NodeKind} from './level';
-import {ungroup} from './groups';
+import {ungroup,setGroupMember} from './groups';
 
 export type FlowNode=Node<{definition:LevelNode},'factory'>;
 export type FrameNode=Node<{group:Level['groups'][number]},'frame'>;
@@ -77,9 +77,15 @@ export function findFreeNodePosition(nodes:LevelNode[],desired:{x:number;y:numbe
   }
   return {x:desired.x+(nodes.length+1)*280,y:desired.y};
 }
-export function addEditorNode(level:Level,type:NodeKind,id:string,desired:{x:number;y:number}):Level{
-  if(level.nodes.some(node=>node.id===id))return level;
-  if(type==='map'){const next=addMap(level,id);return {...next,nodes:next.nodes.map(n=>n.id===id?{...n,position:findFreeNodePosition(level.nodes,desired)}:n)};}
-  const node=makeNode(type,id,findFreeNodePosition(level.nodes,desired));
-  return {...level,nodes:[...level.nodes,node]};
+export function nodeAdditionIssue(level:Level,type:NodeKind):{message:string;existingId?:string}|null{
+  const existing=type==='map'?level.nodes.find(n=>n.type==='map'):undefined;
+  if(existing)return {message:'В уровне разрешена только одна нода «Карта».',existingId:existing.id};
+  if(level.nodes.length>=100)return {message:'В уровне разрешено не больше 100 нод.'};
+  return null;
+}
+export function addEditorNode(level:Level,type:NodeKind,id:string,desired:{x:number;y:number},groupId?:string):Level{
+  if(level.nodes.some(node=>node.id===id)||nodeAdditionIssue(level,type))return level;
+  const next=type==='map'?addMap(level,id):{...level,nodes:[...level.nodes,makeNode(type,id,desired)]};
+  const placed={...next,nodes:next.nodes.map(n=>n.id===id?{...n,position:findFreeNodePosition(level.nodes,desired)}:n)};
+  return groupId?setGroupMember(placed,id,groupId):placed;
 }

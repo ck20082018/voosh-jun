@@ -139,3 +139,15 @@
 .player-app .workshop-canvas{position:absolute;inset:0;height:auto;aspect-ratio:auto}
 .admin-app .map-host{position:relative}
 .admin-app .map-host>.workshop-canvas{position:relative;min-height:450px;flex:1}
+
+/* Quick node creation uses the editor's existing paper theme and tokens. */
+.node-search{position:absolute;z-index:1100;width:min(360px,calc(100% - 16px));max-height:calc(100% - 16px);display:flex;flex-direction:column;gap:8px;padding:12px;background:var(--surface-1);border:1px solid var(--line-strong);border-radius:var(--r-md);box-shadow:var(--e-2);overflow:auto}
+.node-search-heading{display:flex;align-items:center;justify-content:space-between;gap:12px}
+.node-search-label,.node-search-help{font-size:12px;color:var(--text-dim)}
+.node-search input{width:100%;min-height:36px;flex-shrink:0}
+.node-search-results{min-height:0;overflow:auto;overscroll-behavior:contain}
+.node-search-category{padding:8px 4px 4px;font-size:12px;font-weight:700;color:var(--text-dim)}
+.admin-app button.node-search-result:not(.btn){width:100%;display:grid;grid-template-columns:1fr auto;text-align:left;justify-content:stretch;gap:3px 8px;height:auto;padding:9px;white-space:normal;border-color:transparent}
+.node-search-result span{grid-column:1/-1;font-size:12px;font-weight:400;color:var(--text-dim)}
+.node-search-result small{font-size:11px;color:var(--text-dim)}
+.admin-app button.node-search-result:not(.btn)[aria-selected=true]{background:var(--surface-3);border-color:var(--accent)}
