@@ -17,6 +17,7 @@ import { ProfileScreen } from './screens/Profile';
 import { ResultScreen } from './screens/ResultScreen';
 import { navigate, useRoute } from './screens/shared';
 
+const DrawingFixtures=lazy(()=>import('./screens/DrawingFixtures').then(m=>({default:m.DrawingFixtures})));
 const EditorApp = lazy(() => import('./Editor').then(module => ({ default: module.EditorApp })));
 
 interface ResultState { data: ResultData; olympiad: boolean; retry?: () => void; nextHash?: string; backHash: string; backLabel: string }
@@ -117,6 +118,7 @@ export function App() {
   let content;
   let fullscreen = false;
   switch (section) {
+    case 'drawing-fixtures': content=import.meta.env.DEV?<Suspense fallback={<p>Загрузка фикстур…</p>}><DrawingFixtures/></Suspense>:<Redirect to="#/map"/>;break;
     case 'hub': content = <Hub profile={profile} />; break;
     case 'map': content = <MissionMap key={route[1] ?? 'map'} profile={profile} focus={route[1]} />; break;
     case 'olympiads': content = <Olympiads profile={profile} />; break;
