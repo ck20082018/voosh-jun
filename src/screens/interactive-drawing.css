@@ -17,3 +17,6 @@
 .idraw-comparison li { margin:8px 0; }
 .idraw-note { font-size:12px; margin-bottom:0; }
 @media(max-width:500px){.idraw-dimensions{grid-template-columns:minmax(0,1fr)}.interactive-drawing{padding:10px}.idraw-canvas text{font-size:15px}}
+
+.interactive-drawing .idraw-toolbar label { display:flex; align-items:center; gap:6px; flex:0 1 auto; }
+.interactive-drawing .idraw-toolbar input[type=checkbox] { width:16px; height:16px; min-height:0; padding:0; margin:0; flex:none; }

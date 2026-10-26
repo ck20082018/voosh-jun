@@ -144,5 +144,5 @@ export function compileLevel(level: Level): ExecutableLevel {
     const b = one('blank');
     const machine = Object.values(machines).find(m => m.source.kind === 'blank') ?? Object.values(machines)[0];
     const warehouse = warehouses[machine.storeIds[0]] ?? Object.values(warehouses)[0];
-    return { ...base, mode: 'production', blank: { id: b.id, name: String(b.params.name), material: String(b.params.material), ...dimensions(b.params) }, machines, warehouses, waits, machine, warehouse, tool: machine.tool, operations: machine.operations, processId: machine.processId, partName: String(one('part').params.name) };
+    return { ...base, mode: 'production', blank: { ...(b.params.initialBoreDiameter!==undefined?{initialBoreDiameter:Number(b.params.initialBoreDiameter)}:{}), id: b.id, name: String(b.params.name), material: String(b.params.material), ...dimensions(b.params) }, machines, warehouses, waits, machine, warehouse, tool: machine.tool, operations: machine.operations, processId: machine.processId, partName: String(one('part').params.name) };
 }

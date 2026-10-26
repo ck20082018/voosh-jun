@@ -3,9 +3,9 @@ import {geometryOf,type Part} from '../manufacturing';
 import type {TurningGeometry} from '../turningGeometry';
 import type {DrawingDisplay,DrawingSelection} from '../drawingGeometry';
 import {InteractiveDrawing} from './InteractiveDrawing';
-interface BlueprintProps {geometry:TurningGeometry;title:string;result?:TurningGeometry;display?:DrawingDisplay;selection?:DrawingSelection|null;onSelect?:(s:DrawingSelection|null)=>void;toolZ?:number;toolX?:number;rotating?:boolean;toolDirection?:'z'|'x'}
-export function TurningBlueprint({toolZ,toolX,rotating=false,toolDirection='z',...props}:BlueprintProps){
- return <InteractiveDrawing {...props} tool={toolZ!==undefined&&toolX!==undefined?{z:toolZ,radius:toolX,direction:toolDirection,rotating}:undefined}/>;
+interface BlueprintProps {geometry:TurningGeometry;title:string;result?:TurningGeometry;display?:DrawingDisplay;selection?:DrawingSelection|null;onSelect?:(s:DrawingSelection|null)=>void;toolZ?:number;toolX?:number;toolKind?:'drill'|'bore';rotating?:boolean;toolDirection?:'z'|'x'}
+export function TurningBlueprint({toolZ,toolX,toolKind,rotating=false,toolDirection='z',...props}:BlueprintProps){
+ return <InteractiveDrawing {...props} tool={toolZ!==undefined&&toolX!==undefined?{z:toolZ,radius:toolX,direction:toolDirection,rotating,kind:toolKind}:undefined}/>;
 }
 export function PartWorkview({part,requirements,...props}:Omit<BlueprintProps,'geometry'|'result'> & {part:Part;requirements?:TurningGeometry}){
  const g=geometryOf(part);return g.ok?<TurningBlueprint {...props} geometry={requirements??g.value} result={requirements?g.value:undefined}/>:<p role="alert">{g.error.message}</p>;

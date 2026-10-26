@@ -1,0 +1,7 @@
+import {useState} from 'react';
+import {OPERATION_NAMES,type TrainingTarget} from '../turningTools';
+/** Illustrative movement only: never edits production geometry. */
+export function ToolLesson({kind}:{kind:TrainingTarget['kind']}){
+ const [play,setPlay]=useState(0),axial=kind==='drill'||kind==='bore';
+ return <figure><svg viewBox="0 0 500 155" role="img" aria-label={`Знакомство: ${OPERATION_NAMES[kind]}`}><rect x="65" y="50" width="270" height="70" fill="#a8c6c3" stroke="#253a50"/>{kind==='bore'&&<rect x="65" y="74" width="270" height="22" fill="#eef2f7"/>}<path d="M50 85H455" stroke="#647286" strokeDasharray="10 4 2 4"/><g key={play} transform={axial?'translate(365 80)':'translate(280 18)'}>{axial?<path d="M0 0H70V10H0Z" fill="#e7b54b" stroke="#253a50"/>:<path d="M0 0H25V30H0Z" fill="#e7b54b" stroke="#253a50"/>}{play>0&&<animateTransform attributeName="transform" type="translate" from={axial?'365 80':'280 18'} to={axial?'200 80':kind==='chamfer'?'315 55':'280 52'} dur="1.5s" fill="freeze"/>}</g><text x="70" y="30">Заготовка вращается ↻</text><text x="80" y="145">{axial?'Сверло / резец движется вдоль Z ←':'Подача к поверхности по X ↓'}</text></svg><button type="button" onClick={()=>setPlay(n=>n+1)}>Показать движение инструмента</button><figcaption>{OPERATION_NAMES[kind]}. Анимация объясняет движение; безопасная проба ниже выполняется при остановленном шпинделе.</figcaption></figure>;
+}

@@ -6,13 +6,13 @@ const overlaps=(s:{z0:number;z1:number},r:DrawingSelection|null)=>!!r&&(s.z0===s
 export interface InteractiveDrawingProps {
  geometry:TurningGeometry; title:string; display?:DrawingDisplay;
  result?:TurningGeometry; selection?:DrawingSelection|null; onSelect?:(selection:DrawingSelection|null)=>void;
- tool?:{z:number;radius:number;direction:'z'|'x';rotating:boolean};
+ tool?:{kind?:'drill'|'bore';z:number;radius:number;direction:'z'|'x';rotating:boolean};
 }
 /** Readonly geometry in, selection callbacks out. No production rules or core access. */
 export function InteractiveDrawing(props:InteractiveDrawingProps){
  const {geometry,result,title,display={},tool}=props;
  const uid=useId();
- const [local,setLocal]=useState<DrawingSelection|null>(null),[view,setView]=useState<DrawingView>('main'),[zoom,setZoom]=useState(1),[compare,setCompare]=useState(!!result),[cutaway,setCutaway]=useState(true);
+ const [local,setLocal]=useState<DrawingSelection|null>(null),[view,setView]=useState<DrawingView>(()=>geometry.spans.some(s=>s.inner0>0||s.inner1>0)?'section':'main'),[zoom,setZoom]=useState(1),[compare,setCompare]=useState(!!result),[cutaway,setCutaway]=useState(true);
  const requested=props.selection===undefined?local:props.selection;
  const selected=requested&&Number.isFinite(requested.z0)&&Number.isFinite(requested.z1)&&requested.z0>=0&&requested.z1>=requested.z0?requested:null;
  useEffect(()=>{if(selected?.surface==='inner'&&(!display.views||display.views.includes('section')))setView('section');},[selected?.surface,selected?.z0,selected?.z1,display.views]);
@@ -61,7 +61,7 @@ export function InteractiveDrawing(props:InteractiveDrawingProps){
  {highlight.map((s,i)=><g key={i} data-selected-region={`${mm(s.z0)}:${mm(s.z1)}:${selected?.surface}`}>
  {selected?.surface==='inner'?<path d={pointsPath([projectMeridian(s.z0,s.inner0,f),projectMeridian(s.z1,s.inner1,f)],false)+' '+pointsPath([projectMeridian(s.z0,-s.inner0,f),projectMeridian(s.z1,-s.inner1,f)],false)} fill="none" stroke="#814c12" strokeDasharray="4 3" strokeWidth="3"/>:<path d={materialStrips({length:shown.length,spans:[s]},f).join(' ')} fill="#f4bf5b55" stroke="#814c12" strokeDasharray="4 3" strokeWidth="2.5"/>}
  <text x={f.left+(s.z0+s.z1)/2*f.scale} y="42" textAnchor="middle">Выбрано Z{mm(s.z0)}–{mm(s.z1)}</text></g>)}
- {tool&&<g aria-label="Положение инструмента"><path d={`M${projectMeridian(tool.z,tool.radius,f).x} ${projectMeridian(tool.z,tool.radius,f).y}l12 -20h22v20z`} fill="#e7b54b" stroke="#253a50"/><text x={projectMeridian(tool.z,tool.radius,f).x} y={projectMeridian(tool.z,tool.radius,f).y-28}>{tool.direction==='x'?'↓ X':'← Z'}</text>{tool.rotating&&<text x="490" y="60">↻ Вращение</text>}</g>}
+ {tool&&<g aria-label="Положение инструмента"><path d={`M${projectMeridian(tool.z,tool.radius,f).x} ${projectMeridian(tool.z,tool.radius,f).y}${tool.kind==='drill'?`m0 ${-4*f.scale}h65v${8*f.scale}h-65z`:tool.kind==='bore'?'l12 8h42v8h-42z':'l12 -20h22v20z'}`} fill="#e7b54b" stroke="#253a50"/><text x={projectMeridian(tool.z,tool.radius,f).x} y={projectMeridian(tool.z,tool.radius,f).y-28}>{tool.direction==='x'?'↓ X':'← Z'}</text>{tool.rotating&&<text x="490" y="60">↻ Вращение</text>}</g>}
  {active==='detail'&&display.detail?.thread&&<g aria-label="Условное обозначение резьбы — не винтовая геометрия"><path d={threadLine(shown,f,display.detail)} stroke="#253a50" strokeWidth="1"/><text x="40" y="62">Резьба условно · P{mm(display.detail.thread.pitch)} мм · {display.detail.thread.surface==='inner'?'внутренняя':'наружная'}</text></g>}
  </>}
  </g></g>
