@@ -1,3 +1,4 @@
+import type {DrawingDisplay} from './drawingGeometry';
 import type { Level, OperationSpec } from './level';
 import { toyAxleLevel } from './playerLevel';
 import { applyTurningOperation, geometryOf, type Part } from './manufacturing';
@@ -7,6 +8,7 @@ export interface CuttingSettings { rpm:number; feed:number; depth:number }
 export interface SettingRule { enabled:boolean; min:number; max:number; positions?:readonly number[] }
 export interface TrainingStep { target:Extract<TurningOperation,{kind:'outside-turn'|'face'}>; settings:CuttingSettings }
 export interface TurningLesson {
+ drawing?:DrawingDisplay;
  id:string; title:string; explanation:string; targets:TrainingStep['target'][]; requirements:TurningGeometry;
  rules:Record<keyof CuttingSettings,SettingRule>; fixedTargets:boolean; minQuality?:number;
  material:'Сталь'|'Алюминий'; tool:'passing'; grip:number;
@@ -94,7 +96,7 @@ const explanations=[
 export const TURNING_LESSONS:TurningLesson[]=targetSets.map((targets,i)=>{
  let part:Part={shape:'cylinder',diameter:20,length:60,blankId:'steel-stock',material:'Сталь',sections:[],operationIds:[]};
  for(const target of targets){const next=applyTurningOperation(part,{chuckSide:'z0',gripLength:10},target,'author');if(!next.ok)throw Error(next.error.message);part=next.value;}
- return {id:`turning-${i+1}`,title:titles[i],explanation:explanations[i],targets,requirements:(geometryOf(part) as {ok:true;value:TurningGeometry}).value,material:'Сталь',tool:'passing',grip:10,fixedTargets:i<2||i===4,
+ return {drawing:{views:i<3?['main','volume']:['main','end','section','volume']},id:`turning-${i+1}`,title:titles[i],explanation:explanations[i],targets,requirements:(geometryOf(part) as {ok:true;value:TurningGeometry}).value,material:'Сталь',tool:'passing',grip:10,fixedTargets:i<2||i===4,
  minQuality:i===5?85:undefined,
  rules:{rpm:i<2?{enabled:false,min:600,max:600}:{enabled:true,min:300,max:1200},feed:i<2?{enabled:true,min:.08,max:.35,positions:[.08,.2,.35]}:{enabled:true,min:.05,max:.4},depth:i<4?{enabled:false,min:1,max:1}:i===4?{enabled:true,min:.5,max:2,positions:[.5,1,2]}:{enabled:true,min:.1,max:3}}};
 });
