@@ -1,0 +1,65 @@
+Version: e04aa72 (code), Vite http://127.0.0.1:5186/
+Isolated fresh Chrome profiles; no user browser storage accessed.
+
+1440x1000:
+Chrome 155.0.8059.85; 1440×1000; catalog 36
+PASS six map directions, fresh profile gates
+PASS exercise plan-assembly assembly → result
+PASS exercise gear-increase assembly → result
+PASS exercise gear-module assembly → result
+PASS exercise plan-route route → result
+PASS exercise route-plane route → result
+PASS exercise route-clean route → result
+PASS wrong measurement rejected, correction stays available
+PASS exercise plan-caliper measurement → result
+PASS exercise caliper-reject measurement → result
+PASS exercise caliper-boundary measurement → result
+PASS exercise plan-program automation → result
+PASS exercise plan-fault automation → result
+PASS exercise automation-guard automation → result
+PASS exercise plan-optimize schedule → result
+PASS exercise schedule-three schedule → result
+PASS exercise schedule-four schedule → result
+PASS engineering drawing, lazy 3D WebGL, mouse rotation changes rendered image
+PASS turning turning-1 → manufacture → store → result
+PASS turning turning-2 → manufacture → store → result
+PASS turning turning-3 → manufacture → store → result
+PASS turning turning-4 → manufacture → store → result
+PASS turning turning-5 → manufacture → store → result
+PASS turning turning-6 → manufacture → store → result
+PASS turning turning-7 → manufacture → store → result
+PASS turning turning-8 → manufacture → store → result
+PASS turning turning-9 → manufacture → store → result
+PASS turning turning-10 → manufacture → store → result
+PASS turning turning-11 → manufacture → store → result
+PASS turning turning-12 → manufacture → store → result
+PASS turning turning-13 → manufacture → store → result
+PASS turning turning-14 → manufacture → store → result
+PASS turning turning-15 → manufacture → store → result
+PASS persisted records after reload: 30
+ERRORS []
+
+1280x720:
+PASS legacy precision → store → result
+PASS legacy thin-neck → store → result
+PASS legacy two-sections → store → result
+PASS legacy stepped-shaft → store → result
+PASS legacy three-steps → store → result
+PASS tool exercise → result
+PASS editor save/reload
+PASS independent player plan opens, empty plan validation
+PASS v4 JSON export/import
+PASS invalid import preserves draft
+PASS v3 migration imported and validated in browser
+ERRORS []
+
+Independent planning 1440x1000:
+PASS independent plan wrong material rejected after actual manufacturing
+PASS retry preserves plan; steel axle manufactured and accepted
+ERRORS []
+
+Editor manufacturing regression 1440x1000:
+PASS milling block 60×40×15, target cancel, hints and store
+PASS two machines: intermediate storage, same part continued, final store
+PASS reset during processing restores fresh intro
+ERRORS []

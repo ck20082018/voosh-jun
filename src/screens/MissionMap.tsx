@@ -4,6 +4,7 @@ import { DIRECTIONS, MISSIONS, PLANNED, ZONES, type Direction, type MissionSpec 
 import { isPassed, levelFromXp, lockReason, missionStatus, STATUS_LABEL, zoneState, type MissionStatus, type Profile } from '../platform/progress';
 import { Icon } from '../ui/Icon';
 import { Button, Chip } from '../ui/primitives';
+import { ExerciseDiagram } from './ExerciseDiagram';
 import { DrawingSheet } from './DrawingSheet';
 import { Difficulty, drawingOf, navigate, PageHeader, STATUS_ICON, STATUS_TONE, Stars } from './shared';
 import { formatTime } from '../platform/result';
@@ -36,7 +37,7 @@ function Legend() {
   return (
     <ul className="legend" aria-label="Обозначения">
       {items.map(s => <li key={s}><span className={`hex hex--sm hex--${s}`} aria-hidden="true"><Icon name={STATUS_ICON[s]} size={12} /></span>{STATUS_LABEL[s]}</li>)}
-      <li><span className="hex hex--sm hex--planned" aria-hidden="true" />Запланировано</li>
+      {PLANNED.length > 0 && <li><span className="hex hex--sm hex--planned" aria-hidden="true" />Запланировано</li>}
     </ul>
   );
 }
@@ -102,7 +103,7 @@ function MissionNode({ mission, status, profile, active, onSelect }: { mission: 
 
 function MissionDetail({ profile, sel, onClose }: { profile: Profile; sel: Selection; onClose: () => void }) {
   const mission = sel?.kind === 'mission' ? MISSIONS.find(m => m.id === sel.id) : undefined;
-  const drawing = useMemo(() => (mission ? drawingOf(mission.build()) : null), [mission]);
+  const drawing = useMemo(() => (mission?.build ? drawingOf(mission.build()) : null), [mission]);
   if (!sel) {
     return (
       <aside className="detail surface detail--empty" aria-label="Сведения о миссии">
@@ -123,7 +124,7 @@ function MissionDetail({ profile, sel, onClose }: { profile: Profile; sel: Selec
       </aside>
     );
   }
-  if (!mission || !drawing) return null;
+  if (!mission || (!drawing && !mission.exercise)) return null;
   const status = missionStatus(profile, mission);
   const record = profile.records[mission.id];
   const reason = lockReason(profile, mission);
@@ -134,7 +135,7 @@ function MissionDetail({ profile, sel, onClose }: { profile: Profile; sel: Selec
       <p>{mission.order}</p>
       <p className="t-small t-dim">{mission.teaches}</p>
       <div className="detail__meta"><span><Icon name="clock" size={16} />около {mission.minutes} мин</span><span><Difficulty value={mission.difficulty} />сложность</span></div>
-      <>{mission.training?<TurningBlueprint geometry={mission.training.requirements} title={mission.title}/>:<DrawingSheet title={drawing.title} blank={drawing.blank} ops={drawing.ops} />}</>
+      {mission.exercise ? <ExerciseDiagram exercise={mission.exercise} /> : mission.training ? <TurningBlueprint geometry={mission.training.requirements} title={mission.title} display={mission.training.drawing}/> : drawing && <DrawingSheet title={drawing.title} blank={drawing.blank} ops={drawing.ops} requirements={drawing.requirements} />}
       {record && record.best > 0 && (
         <dl className="detail__rec">
           <div><dt>Лучший результат</dt><dd className="num">{record.best}</dd></div>

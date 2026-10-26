@@ -11,6 +11,8 @@
  */
 export interface AttemptSummary {
   evaluationProfile?: 'turning-learning';
+  /** Domain criteria for engineering exercises; absent for manufacturing. */
+  criteria?: Criterion[];
   mode: 'training' | 'olympiad';
   completed: boolean;
   installed: boolean;
@@ -43,7 +45,7 @@ export function computeScore(a: AttemptSummary): Score {
       lines:[{id:'learning',label:'Учебный результат',points,max:1000,note:'Чтение подсказок, чертежа и время размышления не штрафуются. Эффективность показана отдельно.'}]};
   }
   const share = a.opsTotal > 0 ? a.opsDone / a.opsTotal : 0;
-  const criteria: Criterion[] = [
+  const criteria: Criterion[] = a.criteria ?? [
     { id: 'install', label: 'Заготовка закреплена в станке', ok: a.installed, points: a.installed ? 80 : 0, max: 80 },
     { id: 'process', label: a.opsTotal > 1 ? `Выполнены все операции (${a.opsTotal})` : 'Обработка выполнена', ok: a.opsDone >= a.opsTotal && a.opsTotal > 0, points: Math.round(120 * share), max: 120 },
     { id: 'diameter', label: 'Диаметры участков соответствуют чертежу', ok: a.opsDone >= a.opsTotal && a.opsTotal > 0, points: Math.round(100 * share), max: 100 },

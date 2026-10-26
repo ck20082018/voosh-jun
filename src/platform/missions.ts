@@ -1,29 +1,33 @@
+import {operationLabel} from '../turningTools';
 import {TURNING_LESSONS,trainingLevel,type TurningLesson} from '../turningTraining';
 import { exampleLevel, operations, placeObject, type Level } from '../level';
+import { EXERCISE_MISSIONS } from './exerciseMissions';
+import type { Exercise } from './exercises';
 import type { IconName } from '../ui/Icon';
 
-/** Направления платформы. Играбельны только те миссии, которые собираются из существующих нод ядра. */
+/** Направления платформы. Производственные уровни и инженерные упражнения имеют отдельные чистые модели. */
 export type DirectionId = 'machining' | 'engineering' | 'processes' | 'metrology' | 'automation' | 'logistics';
 export interface Direction { id: DirectionId; title: string; blurb: string; icon: IconName }
 
 export const DIRECTIONS: Direction[] = [
   { id: 'machining', title: 'Механическая обработка', blurb: 'Точение валиков: заготовка, станок, склад.', icon: 'lathe' },
-  { id: 'engineering', title: 'Конструирование и инженерия', blurb: 'От чертежа к работающему механизму.', icon: 'cube' },
+  { id: 'engineering', title: 'Конструирование и инженерия', blurb: 'Зубчатые пары: зацепление и передаточное отношение.', icon: 'cube' },
   { id: 'processes', title: 'Производственные процессы', blurb: 'Маршрут детали через цех.', icon: 'gears' },
-  { id: 'metrology', title: 'Метрология и измерения', blurb: 'Как проверить, что деталь годна.', icon: 'ruler' },
-  { id: 'automation', title: 'Автоматизация', blurb: 'Простые автоматические системы.', icon: 'cpu' },
-  { id: 'logistics', title: 'Логистика и оптимизация', blurb: 'Порядок операций и загрузка склада.', icon: 'route' },
+  { id: 'metrology', title: 'Метрология и измерения', blurb: 'Штангенциркуль, нониус и допуски.', icon: 'ruler' },
+  { id: 'automation', title: 'Автоматизация', blurb: 'Программы станка, датчики и безопасная остановка.', icon: 'cpu' },
+  { id: 'logistics', title: 'Логистика и оптимизация', blurb: 'Очередь партий и расписание двух станков.', icon: 'route' },
 ];
 
 export interface Zone { id: string; title: string; requiresMissions: string[]; minLevel: number }
 export const ZONES: Zone[] = [
   {id:'turning-school',title:'Школа точения',requiresMissions:[],minLevel:1},
+  { id: 'training-lab', title: 'Инженерная лаборатория', requiresMissions: [], minLevel: 1 },
   { id: 'shop', title: 'Учебный цех', requiresMissions: [], minLevel: 1 },
   { id: 'lathe-area', title: 'Токарный участок', requiresMissions: ['two-sections'], minLevel: 3 },
 ];
 
 export interface OperationSpec { diameter: number; length: number; seconds: number }
-export interface MissionSpec {
+interface MissionBase {
   id: string;
   direction: DirectionId;
   zone: string;
@@ -36,8 +40,8 @@ export interface MissionSpec {
   minutes: number;
   requires: string[];
   training?:TurningLesson;
-  build: () => Level;
 }
+export type MissionSpec = MissionBase & ({ build: () => Level; exercise?: never } | { exercise: Exercise; build?: never });
 export interface PlannedSpec { id: string; direction: DirectionId; title: string; note: string }
 
 interface TurningRecipe {
@@ -158,19 +162,12 @@ export const MISSIONS: MissionSpec[] = [
       grid: { width: 6, height: 5 }, placements: { blank: [0, 3], lathe: [3, 2], warehouse: [5, 1] },
     }),
   },
-  ...TURNING_LESSONS.map((lesson,i):MissionSpec=>({id:lesson.id,title:lesson.title,direction:'machining',zone:'turning-school',difficulty:i<2?1:i<4?2:3,minutes:5,requires:i?[TURNING_LESSONS[i-1].id]:[],order:lesson.targets.map(t=>t.kind==='face'?`Длина после подрезки: ${t.length} мм`:`Обработанный участок Z${t.z0}–${t.z1}: Ø${t.diameter} мм`).join('; ')+'. Сталь Ø20 × 60 мм; патрон Z0–10. Плечо не считается обработанным участком.',teaches:lesson.explanation,training:lesson,build:()=>trainingLevel(lesson)})),
+  ...TURNING_LESSONS.map((lesson,i):MissionSpec=>({id:lesson.id,title:lesson.title,direction:'machining',zone:'turning-school',difficulty:i<2?1:i<4?2:3,minutes:5,requires:i?[TURNING_LESSONS[i-1].id]:[],order:lesson.targets.map(operationLabel).join('; ')+`. Сталь Ø${lesson.stockDiameter??20} × 60 мм; патрон Z0–10. Плечо не считается обработанным участком.`,teaches:lesson.explanation,training:lesson,build:()=>trainingLevel(lesson)})),
+  ...EXERCISE_MISSIONS,
 ];
 
-/** Направления, для которых механики ещё нет в коде. Показываются как «запланировано» и не запускаются. */
-export const PLANNED: PlannedSpec[] = [
-  { id: 'plan-tool', direction: 'machining', title: 'Выбор подходящего инструмента', note: 'Каталог инструментов доступен в редакторе; отдельная миссия ещё не добавлена.' },
-  { id: 'plan-assembly', direction: 'engineering', title: 'Сборка механизма по чертежу', note: 'Нужны новые ноды сборки и проверки зазоров.' },
-  { id: 'plan-route', direction: 'processes', title: 'Настройка производственного маршрута', note: 'Последовательные маршруты доступны в редакторе; отдельная миссия ещё не добавлена.' },
-  { id: 'plan-caliper', direction: 'metrology', title: 'Измерение детали штангенциркулем', note: 'Нужна механика измерения с погрешностью.' },
-  { id: 'plan-fault', direction: 'automation', title: 'Поиск неисправности оборудования', note: 'Нужны состояния отказов у станков.' },
-  { id: 'plan-program', direction: 'automation', title: 'Программирование простого автомата', note: 'Нужен редактор программ.' },
-  { id: 'plan-optimize', direction: 'logistics', title: 'Оптимизация последовательности операций', note: 'Последовательные станки поддержаны; параллельное производство пока не реализовано.' },
-];
+/** Будущие миссии, ещё не доступные для запуска. */
+export const PLANNED: PlannedSpec[] = [];
 
 export const missionById = (id: string) => MISSIONS.find(mission => mission.id === id);
 export const zoneById = (id: string) => ZONES.find(zone => zone.id === id)!;

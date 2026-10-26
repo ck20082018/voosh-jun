@@ -26,7 +26,7 @@ test('face removes free end and clips linear inner/outer spans without moving or
 });
 test('invalid operations are atomic and report stable codes',()=>{
  const g=stock(),copy=structuredClone(g);
- for(const [op,code] of [[turn(22),'adds-material'],[turn(-1),'invalid-size'],[turn(10,-1),'invalid-size'],[turn(10,5),'chuck-collision'],[turn(10,30,70),'outside-stock'],[{kind:'face',length:61},'adds-material'],[{kind:'face',length:10},'chuck-collision'],[{kind:'face',length:NaN},'invalid-size'],[{kind:'drill',diameter:5,depth:20},'unsupported-operation']] as const){
+ for(const [op,code] of [[turn(22),'adds-material'],[turn(-1),'invalid-size'],[turn(10,-1),'invalid-size'],[turn(10,5),'chuck-collision'],[turn(10,30,70),'outside-stock'],[{kind:'face',length:61},'adds-material'],[{kind:'face',length:10},'chuck-collision'],[{kind:'face',length:NaN},'invalid-size'],[{kind:'thread',surface:'outer',diameter:12,z0:20,z1:30,pitch:0,depth:.5},'invalid-size']] as const){
   const r=cut(g,setup,op);assert.ok(!r.ok);assert.equal(r.error.code,code);assert.ok(r.error.message.length>5);assert.deepEqual(g,copy);
  }
  assert.equal(cut(g,{chuckSide:'z0',gripLength:0},turn(10)).ok,false);
