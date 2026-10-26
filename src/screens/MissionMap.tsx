@@ -134,7 +134,7 @@ function MissionDetail({ profile, sel, onClose }: { profile: Profile; sel: Selec
       <p>{mission.order}</p>
       <p className="t-small t-dim">{mission.teaches}</p>
       <div className="detail__meta"><span><Icon name="clock" size={16} />около {mission.minutes} мин</span><span><Difficulty value={mission.difficulty} />сложность</span></div>
-      <>{mission.training?<TurningBlueprint geometry={mission.training.requirements} title={mission.title}/>:<DrawingSheet title={drawing.title} blank={drawing.blank} ops={drawing.ops} />}</>
+      <>{mission.training?<TurningBlueprint geometry={mission.training.requirements} title={mission.title} display={mission.training.drawing}/>:<DrawingSheet title={drawing.title} blank={drawing.blank} ops={drawing.ops} requirements={drawing.requirements} />}</>
       {record && record.best > 0 && (
         <dl className="detail__rec">
           <div><dt>Лучший результат</dt><dd className="num">{record.best}</dd></div>

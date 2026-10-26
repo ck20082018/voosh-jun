@@ -1,3 +1,4 @@
+import {validDrawingDisplay} from './drawing/settings';
 import { NODE_TYPES, type Level } from './level';
 import { validateLevel } from './validation';
 import { migrateV1, migrateV2,migrateV3,type LegacyV3Level, type LegacyV2Level, type LegacyLevel } from './migration';
@@ -50,6 +51,7 @@ export function parseLevel(json: string, options: {
     }).id)).size !== v.nodes.length)
         throw new Error('Идентификаторы нод должны быть уникальными до миграции.');
     const level = v.version === 1 ? migrateV3(migrateV2(migrateV1(v as unknown as LegacyLevel))) : v.version === 2 ? migrateV3(migrateV2(v as unknown as LegacyV2Level)):v.version===3?migrateV3(v as unknown as LegacyV3Level):v as unknown as Level;
+    if(level.drawing!==undefined&&!validDrawingDisplay(level.drawing))throw new Error('Некорректные настройки чертежа.');
     if(!['ready','player'].includes(level.productionMode)||!Array.isArray(level.groups)||level.groups.length>50)throw new Error('Некорректный режим или группы уровня.');
     for(const g of level.groups)if(!object(g)||g.groupId!==undefined||g.parentId!==undefined||g.collapsed!==undefined||!str(g.id)||!str(g.name)||typeof g.color!=='string'||!/^#[0-9a-f]{6}$/i.test(g.color)||!object(g.position)||!finite(g.position.x)||!finite(g.position.y)||!object(g.size)||!finite(g.size.width)||!finite(g.size.height)||g.size.width<200||g.size.height<140||g.size.width>10000||g.size.height>10000)throw new Error('Некорректная рамка группы.');
     if(new Set(level.groups.map(g=>g.id)).size!==level.groups.length||level.groups.some(g=>level.nodes.some(n=>n.id===g.id))||level.nodes.some(n=>n.groupId!==undefined&&(typeof n.groupId!=='string'||!level.groups.some(g=>g.id===n.groupId))))throw new Error('Некорректная принадлежность к группе.');
@@ -74,7 +76,7 @@ export function parseLevel(json: string, options: {
         if (errors.length)
             throw new Error(errors.map(e => e.message).join('\n'));
     }
-    return { version: 4,productionMode:level.productionMode,groups:level.groups.map(g=>({id:g.id,name:g.name,color:g.color,position:{...g.position},size:{...g.size}})), id: level.id, name: level.name, nodes: level.nodes.map(n => ({ id: n.id, type: n.type, position: { ...n.position }, params: structuredClone(n.params),...(n.groupId?{groupId:n.groupId}:{}), ...(n.size ? { size: { ...n.size } } : {}) })), edges: level.edges.map(e => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle })), grid: { ...level.grid, points: level.grid.points.map(p => ({ id: p.id, x: p.x, y: p.y })) }, placements: level.placements.map(p => ({ nodeId: p.nodeId, pointId: p.pointId })) };
+    return { ...(level.drawing?{drawing:structuredClone(level.drawing)}:{}), version: 4,productionMode:level.productionMode,groups:level.groups.map(g=>({id:g.id,name:g.name,color:g.color,position:{...g.position},size:{...g.size}})), id: level.id, name: level.name, nodes: level.nodes.map(n => ({ id: n.id, type: n.type, position: { ...n.position }, params: structuredClone(n.params),...(n.groupId?{groupId:n.groupId}:{}), ...(n.size ? { size: { ...n.size } } : {}) })), edges: level.edges.map(e => ({ id: e.id, source: e.source, sourceHandle: e.sourceHandle, target: e.target, targetHandle: e.targetHandle })), grid: { ...level.grid, points: level.grid.points.map(p => ({ id: p.id, x: p.x, y: p.y })) }, placements: level.placements.map(p => ({ nodeId: p.nodeId, pointId: p.pointId })) };
 }
 // Browser entry points use this before installing a project, so corrupt raster payloads cannot enter it.
 export async function checkLevelImages(level: Level, decoder?: ImageDecoder): Promise<void> {
