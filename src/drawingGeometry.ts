@@ -1,7 +1,8 @@
+import {normalizedThreads,threadLabel} from './threading';
 import {GEOMETRY_TOLERANCE_MM, normalizeGeometry, turningSurfaceData, validateGeometry, type ProfileSpan, type TurningOperation, type TurningGeometry} from './turningGeometry';
 export type DrawingView='main'|'end'|'section'|'detail'|'volume';
 export interface DrawingSelection {z0:number;z1:number;surface:'outer'|'inner'|'length';id?:string}
-export interface DrawingDimension extends DrawingSelection {id:string;label?:string;kind:'length'|'outer'|'inner'}
+export interface DrawingDimension extends DrawingSelection {id:string;label?:string;kind:'length'|'outer'|'inner'|'thread'}
 export interface DrawingDisplay {
  views?:readonly DrawingView[];
  dimensions?:readonly DrawingDimension[];
@@ -44,7 +45,7 @@ export function drawingDimensions(g:TurningGeometry,display:DrawingDisplay={}):D
  const spans=normalizeGeometry(g).spans;
  const boreStart=spans.find(s=>s.inner0>0||s.inner1>0)?.z0;
  const boreLength:DrawingDimension[]=boreStart!==undefined&&spans.at(-1)!.inner1>0?[{id:'bore-length',kind:'length',surface:'inner',z0:boreStart,z1:g.length,label:boreStart===0?'Длина сквозной полости':'Глубина отверстия со свободного торца'}]:[];
- return [...boreLength,{id:'total-length',kind:'length',surface:'length',z0:0,z1:g.length,label:'Общая длина'},...spans.flatMap(s=>{
+ return [...normalizedThreads(g.threads).map(t=>({id:`thread-${t.surface}-${mm(t.z0)}-${mm(t.z1)}`,kind:'thread' as const,surface:t.surface,z0:t.z0,z1:t.z1,label:'Резьба'})),...boreLength,{id:'total-length',kind:'length',surface:'length',z0:0,z1:g.length,label:'Общая длина'},...spans.flatMap(s=>{
   const key=`${mm(s.z0)}-${mm(s.z1)}`;
   const dims:DrawingDimension[]=[{id:`outer-${key}`,kind:'outer',surface:'outer',z0:s.z0,z1:s.z1}, {id:`length-${key}`,kind:'length',surface:'length',z0:s.z0,z1:s.z1}];
   if(s.inner0>0||s.inner1>0)dims.push({id:`inner-${key}`,kind:'inner',surface:'inner',z0:s.z0,z1:s.z1});
@@ -52,6 +53,7 @@ export function drawingDimensions(g:TurningGeometry,display:DrawingDisplay={}):D
  })];
 }
 export function dimensionValue(g:TurningGeometry,d:DrawingDimension):number[]|null{
+ if(d.kind==='thread'){const t=normalizedThreads(g.threads).find(t=>t.surface===d.surface&&t.z0===d.z0&&t.z1===d.z1);return t?[t.diameter,t.pitch,t.z1-t.z0,t.depth,t.phase]:null;}
  if(d.id==='total-length'&&d.kind==='length')return [g.length];
  if(d.z0<0||d.z1>d.z0&&d.z1>g.length+GEOMETRY_TOLERANCE_MM||d.z1<=d.z0)return null;
  if(d.kind==='length')return d.id==='total-length'?[g.length]:[d.z1-d.z0];
@@ -60,21 +62,22 @@ export function dimensionValue(g:TurningGeometry,d:DrawingDimension):number[]|nu
  return [Math.min(...values),Math.max(...values)];
 }
 export function dimensionText(g:TurningGeometry,d:DrawingDimension):string{
+ if(d.kind==='thread'){const t=normalizedThreads(g.threads).find(t=>t.surface===d.surface&&t.z0===d.z0&&t.z1===d.z1);return t?threadLabel(t):'резьба отсутствует';}
  const values=dimensionValue(g,d);if(!values)return 'нет материала на заданном интервале';
  const value=values.length===1||Math.abs(values[0]-values[1])<=GEOMETRY_TOLERANCE_MM?mm(values[0]):`${mm(values[0])}–${mm(values[1])}`;
  return `${d.kind==='length'?'':'Ø'}${value} мм`;
 }
 export interface DimensionDifference {dimension:DrawingDimension;expected:string;actual:string;message:string}
 export function compareDrawing(expected:TurningGeometry,actual:TurningGeometry,display:DrawingDisplay={}):DimensionDifference[]{
- const base=[...drawingDimensions(expected),...drawingDimensions(expected,display),...drawingDimensions(actual).filter(d=>d.kind==='inner')];
+ const base=[...drawingDimensions(expected),...drawingDimensions(expected,display),...drawingDimensions(actual).filter(d=>d.kind==='inner'||d.kind==='thread')];
  const dims=[...new Map(base.map(d=>[d.id,d])).values()],out:DimensionDifference[]=[];
  for(const d of dims){
   const a=dimensionValue(expected,d),b=dimensionValue(actual,d);
   // Compare diameter surfaces at every breakpoint, not only extrema.
   const cuts=[d.z0,d.z1,...actual.spans.flatMap(s=>[s.z0,s.z1]).filter(z=>z>d.z0&&z<d.z1),...expected.spans.flatMap(s=>[s.z0,s.z1]).filter(z=>z>d.z0&&z<d.z1)].sort((x,y)=>x-y);
-  const tolerance=d.kind==='length'?GEOMETRY_TOLERANCE_MM:2*GEOMETRY_TOLERANCE_MM;
+  const tolerance=d.kind==='outer'||d.kind==='inner'?2*GEOMETRY_TOLERANCE_MM:GEOMETRY_TOLERANCE_MM;
   let same=!!a&&!!b&&a.length===b.length&&a.every((v,i)=>Math.abs(v-b[i])<=tolerance);
-  if(same&&d.kind!=='length')same=cuts.slice(1).every((z1,i)=>{const z0=cuts[i];if(z1<=z0)return true;const mid=(z0+z1)/2,x=expected.spans.find(s=>s.z0<=mid&&s.z1>=mid),y=actual.spans.find(s=>s.z0<=mid&&s.z1>=mid);return !!x&&!!y&&[z0,z1].every(z=>Math.abs(radiusAt(x,z,d.kind==='inner')-radiusAt(y,z,d.kind==='inner'))*2<=tolerance);});
+  if(same&&d.kind!=='length'&&d.kind!=='thread')same=cuts.slice(1).every((z1,i)=>{const z0=cuts[i];if(z1<=z0)return true;const mid=(z0+z1)/2,x=expected.spans.find(s=>s.z0<=mid&&s.z1>=mid),y=actual.spans.find(s=>s.z0<=mid&&s.z1>=mid);return !!x&&!!y&&[z0,z1].every(z=>Math.abs(radiusAt(x,z,d.kind==='inner')-radiusAt(y,z,d.kind==='inner'))*2<=tolerance);});
   if(!same){const want=dimensionText(expected,d),got=dimensionText(actual,d);out.push({dimension:{...d},expected:want,actual:got,message:`${d.label??(d.kind==='inner'?'Внутренний диаметр':d.kind==='outer'?'Наружный диаметр':'Длина участка')} Z${mm(d.z0)}–${mm(d.z1)}: требуется ${want}, получилось ${got}${want===got?' (различается распределение профиля по Z)':''}.`});}
  }
  // A longer actual part is caught by total length even if author hides total dimension.

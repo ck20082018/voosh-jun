@@ -50,7 +50,7 @@ test('boring requires a reachable preliminary channel, increases radius, preserv
  const tight=cut(stock,{kind:'drill',diameter:4,depth:40});
  assert.equal(checkTurningTool(tight,{kind:'bore',z0:40,z1:60,diameter:12},findTurningTool('bore-choice')).ok,false);
  assert.equal(checkTurningTool(stock,{kind:'groove',z0:40,z1:41,diameter:16},findTurningTool('groove-choice')).ok,false);
- assert.ok(TURNING_TOOLS.length<=5);
+ assert.ok(TURNING_TOOLS.length<=7);
 });
 test('levels 7–12 execute with real tools through PlanningCore, match preview and store identical item',()=>{
  for(let i=6;i<12;i++){

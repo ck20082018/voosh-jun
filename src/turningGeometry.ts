@@ -1,10 +1,11 @@
+import {applyThread,validateThreads,normalizedThreads,sameThreads,retainThreads,type ThreadFeature} from './threading';
 /** Millimetres. Z=0 is the chuck-side end; +Z points toward the free end. */
 export interface ProfileSpan {
   z0: number; z1: number;
   outer0: number; outer1: number;
   inner0: number; inner1: number;
 }
-export interface TurningGeometry { length: number; spans: readonly ProfileSpan[] }
+export interface TurningGeometry { length: number; spans: readonly ProfileSpan[]; threads?:readonly ThreadFeature[] }
 export interface TurningSetup { chuckSide: 'z0'; gripLength: number; axialClearanceDiameter?:number; exitClearance?:number; minWallThickness?:number }
 export type TurningOperation =
   | { kind: 'outside-turn'; z0: number; z1: number; diameter: number }
@@ -13,8 +14,8 @@ export type TurningOperation =
   | { kind: 'chamfer'; end: 'free'; axialLength: number; radialDepth: number }
   | { kind: 'drill'; diameter: number; depth: number }
   | { kind: 'bore'; z0: number; z1: number; diameter: number }
-  | { kind: 'thread'; surface: 'outer' | 'inner'; z0: number; z1: number; pitch: number; depth: number };
-export type GeometryErrorCode = 'invalid-geometry' | 'invalid-setup' | 'invalid-size' | 'outside-stock' | 'chuck-collision' | 'adds-material' | 'wall-breakthrough' | 'unsupported-operation' | 'missing-hole' | 'tool-incompatible' | 'unreachable';
+  | { kind: 'thread'; surface: 'outer' | 'inner'; z0: number; z1: number; diameter:number; pitch: number; depth: number; phase?:number };
+export type GeometryErrorCode = 'invalid-geometry' | 'invalid-setup' | 'invalid-size' | 'outside-stock' | 'chuck-collision' | 'adds-material' | 'wall-breakthrough' | 'unsupported-operation' | 'missing-hole' | 'tool-incompatible' | 'unreachable' | 'thread-damaged';
 export type GeometryResult<T> = { ok: true; value: T } | { ok: false; error: { code: GeometryErrorCode; message: string } };
 export const GEOMETRY_TOLERANCE_MM = 1e-6;
 const close = (a: number, b: number) => Math.abs(a - b) <= GEOMETRY_TOLERANCE_MM;
@@ -28,6 +29,7 @@ export function validateGeometry(g: TurningGeometry): GeometryResult<TurningGeom
       return fail('invalid-geometry', 'Профиль должен покрывать Z без пропусков; радиусы неотрицательны, внутренний не больше наружного.');
     end = s.z1;
   }
+  const threads=validateThreads(g);if(!threads.ok)return threads;
   return close(end,g.length) ? { ok: true, value: structuredClone(g) } : fail('invalid-geometry', 'Профиль не покрывает длину детали.');
 }
 const radius = (s: ProfileSpan, z: number, inner: boolean) => {
@@ -49,10 +51,10 @@ export function normalizeGeometry(g: TurningGeometry): TurningGeometry {
       p.z1=s.z1; p.outer1=s.outer1; p.inner1=s.inner1;
     } else spans.push({...s});
   }
-  return {length:g.length,spans};
+  return {length:g.length,spans,...(g.threads?.length?{threads:normalizedThreads(g.threads)}:{})};
 }
 export function sameGeometry(a: TurningGeometry, b: TurningGeometry): boolean {
-  if (!validateGeometry(a).ok || !validateGeometry(b).ok || !close(a.length,b.length)) return false;
+  if (!validateGeometry(a).ok || !validateGeometry(b).ok || !close(a.length,b.length)||!sameThreads(a.threads,b.threads)) return false;
   // Compare on the common partition, including both sides of every step.
   const cuts = [...new Set([...a.spans,...b.spans].flatMap(s=>[s.z0,s.z1]))].sort((x,y)=>x-y);
   return cuts.slice(1).every((z1,i)=>{
@@ -72,12 +74,13 @@ export function migrateLegacyProfile(diameter: number, length: number, sections:
   });
   return validateGeometry(normalizeGeometry({length,spans}));
 }
-export function applyTurningGeometry(g: TurningGeometry, setup: TurningSetup, op: TurningOperation): GeometryResult<TurningGeometry> {
+function cutGeometry(g: TurningGeometry, setup: TurningSetup, op: TurningOperation): GeometryResult<TurningGeometry> {
   const valid=validateGeometry(g); if(!valid.ok)return valid;
   if(setup.chuckSide!=='z0'||!finite(setup.gripLength)||setup.gripLength<=0||setup.gripLength>=g.length) return fail('invalid-setup','Укажите положительную длину закрепления у Z=0, меньше длины детали.');
-  if(op.kind==='thread')return fail('unsupported-operation','Резьба пока не реализована.');
+
   const wall=setup.minWallThickness??1;
   if(!finite(wall)||wall<=0||setup.axialClearanceDiameter!==undefined&&(!finite(setup.axialClearanceDiameter)||setup.axialClearanceDiameter<=0)||setup.exitClearance!==undefined&&(!finite(setup.exitClearance)||setup.exitClearance<0))return fail('invalid-setup','Некорректный просвет патрона, выход инструмента или толщина стенки.');
+  if(op.kind==='thread')return applyThread(g,setup,op);
   if(op.kind==='chamfer'){
     const c=op.axialLength,end=g.spans.at(-1)!,r=end.outer1;
     if(op.end!=='free'||!finite(c,op.radialDepth)||c<=0||!close(c,op.radialDepth))return fail('invalid-size','Фаска свободной кромки имеет угол 45°: осевой размер равен радиальному.');
@@ -147,4 +150,9 @@ export function turningSurfaceData(g: TurningGeometry): GeometryResult<{
   return {ok:true,value:{length:g.length,
     outer:g.spans.flatMap(s=>[{z:s.z0,radius:s.outer0},{z:s.z1,radius:s.outer1}]),
     inner:g.spans.flatMap(s=>[{z:s.z0,radius:s.inner0},{z:s.z1,radius:s.inner1}])}};
+}
+
+export function applyTurningGeometry(g:TurningGeometry,setup:TurningSetup,op:TurningOperation):GeometryResult<TurningGeometry>{
+ const result=cutGeometry(g,setup,op);if(!result.ok||op.kind==='thread')return result;
+ return retainThreads(g,result.value,setup);
 }

@@ -1,3 +1,5 @@
+import {sameThreads,threadLabel} from './threading';
+import {geometryOf} from './manufacturing';
 import {checkTrainingPlan,type TurningLesson} from './turningTraining';
 import { makeNode, defaultOperation, catalogIds, type Level, type OperationSpec } from './level';
 import { catalogReferences, allowedOperations } from './catalog';
@@ -241,6 +243,8 @@ export class PlanningCore {
             differences.push({characteristic:'Качество последнего реального прохода',expected:`не ниже ${expected.minQuality}/100`,actual:`${(actual.surfaceQuality??0).toFixed(0)}/100`});
         if(expected.maxLastCutDepth!==undefined&&(actual.lastCutDepth??Infinity)>expected.maxLastCutDepth)
             differences.push({characteristic:'Снятие чистовым проходом по радиусу',expected:`не более ${expected.maxLastCutDepth} мм`,actual:`${actual.lastCutDepth??'не было резания'} мм`});
+        const ag=geometryOf(actual),eg=geometryOf(expected);
+        if(ag.ok&&eg.ok&&!sameThreads(ag.value.threads,eg.value.threads))differences.push({characteristic:'Резьба: размер, шаг, участок и готовность',expected:eg.value.threads?.map(threadLabel).join('; ')||'без резьбы',actual:ag.value.threads?.map(threadLabel).join('; ')||'резьба отсутствует'});
         if (!matchesFreeResult({ ...actual, material: expected.material }, {...expected,minQuality:undefined,maxLastCutDepth:undefined}))
             differences.push({ characteristic: 'Размеры и участки', expected: dimensionText(expected) + '; ' + expected.sections.map(s => `Ø${s.diameter} × ${s.length}`).join(', '), actual: dimensionText(actual) + '; ' + actual.sections.map(s => `Ø${s.diameter} × ${s.length}`).join(', ') });
         return { success, expected: structuredClone(expected), actual: structuredClone(actual), differences };

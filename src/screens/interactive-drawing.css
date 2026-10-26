@@ -20,3 +20,5 @@
 
 .interactive-drawing .idraw-toolbar label { display:flex; align-items:center; gap:6px; flex:0 1 auto; }
 .interactive-drawing .idraw-toolbar input[type=checkbox] { width:16px; height:16px; min-height:0; padding:0; margin:0; flex:none; }
+
+.turning-card fieldset .thread-lesson { flex:1 1 100%; min-width:0; }

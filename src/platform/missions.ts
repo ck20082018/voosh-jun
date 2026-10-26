@@ -159,7 +159,7 @@ export const MISSIONS: MissionSpec[] = [
       grid: { width: 6, height: 5 }, placements: { blank: [0, 3], lathe: [3, 2], warehouse: [5, 1] },
     }),
   },
-  ...TURNING_LESSONS.map((lesson,i):MissionSpec=>({id:lesson.id,title:lesson.title,direction:'machining',zone:'turning-school',difficulty:i<2?1:i<4?2:3,minutes:5,requires:i?[TURNING_LESSONS[i-1].id]:[],order:lesson.targets.map(operationLabel).join('; ')+'. Сталь Ø20 × 60 мм; патрон Z0–10. Плечо не считается обработанным участком.',teaches:lesson.explanation,training:lesson,build:()=>trainingLevel(lesson)})),
+  ...TURNING_LESSONS.map((lesson,i):MissionSpec=>({id:lesson.id,title:lesson.title,direction:'machining',zone:'turning-school',difficulty:i<2?1:i<4?2:3,minutes:5,requires:i?[TURNING_LESSONS[i-1].id]:[],order:lesson.targets.map(operationLabel).join('; ')+`. Сталь Ø${lesson.stockDiameter??20} × 60 мм; патрон Z0–10. Плечо не считается обработанным участком.`,teaches:lesson.explanation,training:lesson,build:()=>trainingLevel(lesson)})),
 ];
 
 /** Направления, для которых механики ещё нет в коде. Показываются как «запланировано» и не запускаются. */
