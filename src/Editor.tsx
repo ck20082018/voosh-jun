@@ -8,8 +8,10 @@ import {loadLevel,saveDraft,parseLevelWithImages,checkLevelImages,serializeLevel
 const Workshop=lazy(()=>import('./Workshop').then(module=>({default:module.Workshop})));
 function SceneLoading(){return <div className="scene-loading">Загрузка цеха…</div>;}
 
-import {addEditorNode,type EditorNode} from './editorFlow';
+import {addEditorNode,nodeAdditionIssue,type EditorNode} from './editorFlow';
 import {useEditorHistory} from './useEditorHistory';
+import {loadRecentNodeTypes,rememberNodeType,type NodeAddResult} from './nodeSearch';
+const preferences=():Storage|null=>{try{return localStorage;}catch{return null;}};
 import {PlanningCore} from './planning';
 import {PlanningPlayer} from './PlanningPlayer';
 import {PartPreview} from './PartPreview';
@@ -28,6 +30,8 @@ function message(error:unknown){return error instanceof Error?error.message:Stri
 export function EditorApp(){
   const [initial]=useState(initialProject);
   const history=useEditorHistory(initial.level);const {level,setLevel}=history;
+  const levelRef=useRef(level);levelRef.current=level;
+  const [recentTypes,setRecentTypes]=useState(()=>loadRecentNodeTypes(preferences()));
   const [undoRevision,setUndoRevision]=useState(0);
   const [notice,setNotice]=useState(initial.notice);
   const [imagesReady,setImagesReady]=useState(!initial.level.nodes.some(n=>n.type==='intro'&&n.params.image));
@@ -46,14 +50,18 @@ export function EditorApp(){
   const errors=useMemo(()=>validateLevel(level),[level]);
   const node=level.nodes.find(n=>n.id===selected);
   const setFlowInstance=useCallback((instance:ReactFlowInstance<EditorNode,Edge>|null)=>{flow.current=instance;},[]);
-  function addNode(type:NodeKind,position?:{x:number;y:number}){
+  function addNode(type:NodeKind,position?:{x:number;y:number},groupId?:string):NodeAddResult{
+    const issue=nodeAdditionIssue(levelRef.current,type);if(issue){setNotice(issue.message);return {ok:false,...issue};}
     history.end();
     const bounds=document.querySelector('.flow-host')?.getBoundingClientRect();
     const center=bounds&&tab==='graph'&&flow.current?flow.current.screenToFlowPosition({x:bounds.left+bounds.width/2,y:bounds.top+bounds.height/2}):{x:315,y:240};
     const desired=position??{x:center.x-115,y:center.y-70};
     const id=crypto.randomUUID();
-    setLevel(current=>addEditorNode(current,type,id,desired));
+    const next=addEditorNode(levelRef.current,type,id,desired,groupId);
+    levelRef.current=next;setLevel(next);
+    setRecentTypes(current=>rememberNodeType(current,type,preferences()));
     setSelected(id);setFocusNodeId(id);setTab('graph');setNotice(`Добавлена нода «${registry[type].title}». Настройте параметры справа и соедините порты.`);
+    return {ok:true};
   }
   function start(test:boolean){setChecked(true);if(errors.length){setNotice('Исправьте ошибки перед запуском.');return;}try{const snapshot=structuredClone(level);document.documentElement.scrollTop=0;document.body.scrollTop=0;setRun({core:snapshot.productionMode==='player'?new PlanningCore(snapshot):new FactoryCore(compileLevel(snapshot)),level:snapshot,test});setNotice('');}catch(error){setNotice(message(error));}}
   function focusIssue(issue:Issue){if(!issue.nodeId)return;setSelected(issue.nodeId);setTab('graph');const n=level.nodes.find(n=>n.id===issue.nodeId);if(n)flow.current?.setCenter(n.position.x+115,n.position.y+60,{zoom:1,duration:300});}
@@ -65,22 +73,23 @@ export function EditorApp(){
   }
   function updateParams(patch:Params){if(!node)return;if('image' in patch)history.end();const id=node.id;setLevel(current=>({...current,nodes:current.nodes.map(n=>n.id===id?{...n,params:{...n.params,...patch}}:n)}));}
   function undoEdit(){if(!history.canUndo)return;history.undo();setSelected(null);setFocusNodeId(null);setMovingPoint(null);setChecked(false);setUndoRevision(value=>value+1);setNotice('Изменение отменено.');}
+  function redoEdit(){if(!history.canRedo)return;history.redo();setSelected(null);setFocusNodeId(null);setMovingPoint(null);setChecked(false);setUndoRevision(value=>value+1);setNotice('Изменение повторено.');}
   useEffect(()=>{
     if(run||!imagesReady)return;
     function keyDown(event:KeyboardEvent){
       const target=event.target;
-      if(event.defaultPrevented||event.isComposing||event.altKey||event.shiftKey||!(event.metaKey||event.ctrlKey)||!(event.code==='KeyZ'||event.key.toLowerCase()==='z'))return;
+      if(event.defaultPrevented||event.isComposing||event.altKey||!(event.metaKey||event.ctrlKey)||!(event.code==='KeyZ'||event.key.toLowerCase()==='z'))return;
       if(target instanceof Element&&target.closest('input,textarea,select,[contenteditable=""],[contenteditable="true"],[role="textbox"]'))return;
-      event.preventDefault();undoEdit();
+      event.preventDefault();if(event.shiftKey)redoEdit();else undoEdit();
     }
     window.addEventListener('keydown',keyDown);return()=>window.removeEventListener('keydown',keyDown);
-  },[run,imagesReady,history.canUndo,history.undo]);
+  },[run,imagesReady,history.canUndo,history.canRedo,history.undo,history.redo]);
   if(!imagesReady)return <main><p>{notice||'Проверка изображений сохранения…'}</p><button onClick={()=>{history.reset(exampleLevel());setImagesReady(true);}}>Открыть пример (сохранение остаётся в браузере)</button></main>;
   if(run){const onExit=()=>{run.core.dispose();setRun(null);};return run.core instanceof PlanningCore?<PlanningPlayer core={run.core} level={run.level} onExit={onExit} renderRuntime={(core,scene,planning,onChange)=><Player core={core} level={scene} test={run.test} onExit={onExit} planning={planning} onPlanChange={onChange}/>}/>:<Player core={run.core} level={run.level} test={run.test} onExit={onExit}/>;}
-  return <main className="admin-app theme-paper" onInputCapture={event=>{if((event.target as Element).matches('input:not([type=checkbox]):not([type=file]),textarea'))history.beginField();}} onClickCapture={event=>{if((event.target as Element).closest('button'))history.end();}} onChangeCapture={event=>{if((event.target as Element).matches('select,input[type=checkbox],input[type=file]'))history.end();}} onFocusCapture={event=>{if(event.target.matches('input:not([type=checkbox]):not([type=file]),textarea'))history.begin();}} onBlurCapture={event=>{if(event.target.matches('input,textarea'))history.end();}}>
+  return <main className="admin-app theme-paper" onInputCapture={event=>{if((event.target as Element).closest('.node-search'))return;if((event.target as Element).matches('input:not([type=checkbox]):not([type=file]),textarea'))history.beginField();}} onClickCapture={event=>{if((event.target as Element).closest('.node-search'))return;if((event.target as Element).closest('button'))history.end();}} onChangeCapture={event=>{if((event.target as Element).closest('.node-search'))return;if((event.target as Element).matches('select,input[type=checkbox],input[type=file]'))history.end();}} onFocusCapture={event=>{if((event.target as Element).closest('.node-search'))return;if(event.target.matches('input:not([type=checkbox]):not([type=file]),textarea'))history.begin();}} onBlurCapture={event=>{if((event.target as Element).closest('.node-search'))return;if(event.target.matches('input,textarea'))history.end();}}>
     <header className="app-header"><div><span className="eyebrow">Для организаторов</span><h1 className="t-h2">Редактор заданий</h1><p className="muted">Граф сценария, карта цеха, проверка и тестовый запуск.</p></div><div className="mode-tabs"><button className="active">Администратор</button><button onClick={()=>start(false)}>Игрок ↗</button></div></header>
     <div className="toolbar"><input className="level-name" aria-label="Название уровня" value={level.name} onChange={e=>setLevel({...level,name:e.target.value})} /><label>Режим производства<select aria-label="Режим производства" value={level.productionMode} onChange={e=>setLevel({...level,productionMode:e.target.value as Level['productionMode']})}><option value="ready">Готовый план</option><option value="player">План игрока</option></select></label><div className="toolbar-actions">
-      <button disabled={!history.canUndo} title="Cmd+Z / Ctrl+Z" onClick={undoEdit}>Отменить</button><button onClick={()=>replace(emptyLevel())}>Новый уровень</button><button onClick={()=>replace(exampleLevel())}>Пример</button><button onClick={()=>replace(toyAxleLevel())}>Ось: план игрока</button><button onClick={()=>replace(welcomeLevel())}>Приветствие</button><button onClick={()=>replace(twoOperationsLevel())}>2 операции</button><button onClick={()=>replace(intermediateLevel())}>Два станка</button><button onClick={()=>replace(millingLevel())}>Фрезерный пример</button><button onClick={()=>replace(checkLevel())}>Проверка выбора</button><div className="add-node-control"><select aria-label="Тип новой ноды" value={addType} onChange={e=>setAddType(e.target.value as NodeKind)}>{NODE_TYPES.map(type=><option key={type} value={type}>{registry[type].title}</option>)}</select><button onClick={()=>addNode(addType)}>+ Добавить ноду</button></div>
+      <button disabled={!history.canUndo} title="Cmd+Z / Ctrl+Z" onClick={undoEdit}>Отменить</button><button disabled={!history.canRedo} title="Cmd+Shift+Z / Ctrl+Shift+Z" onClick={redoEdit}>Повторить</button><button onClick={()=>replace(emptyLevel())}>Новый уровень</button><button onClick={()=>replace(exampleLevel())}>Пример</button><button onClick={()=>replace(toyAxleLevel())}>Ось: план игрока</button><button onClick={()=>replace(welcomeLevel())}>Приветствие</button><button onClick={()=>replace(twoOperationsLevel())}>2 операции</button><button onClick={()=>replace(intermediateLevel())}>Два станка</button><button onClick={()=>replace(millingLevel())}>Фрезерный пример</button><button onClick={()=>replace(checkLevel())}>Проверка выбора</button><div className="add-node-control"><select aria-label="Тип новой ноды" value={addType} onChange={e=>setAddType(e.target.value as NodeKind)}>{NODE_TYPES.map(type=><option key={type} value={type}>{registry[type].title}</option>)}</select><button onClick={()=>addNode(addType)}>+ Добавить ноду</button></div>
       <button onClick={()=>{try{saveDraft(localStorage,level);setNotice(errors.length?'Черновик сохранён. Можно продолжить создание после перезагрузки.':'Уровень сохранён в этом браузере.');}catch(e){setChecked(true);setNotice(`Не удалось сохранить: ${message(e)}`);}}}>Сохранить</button>
       <button onClick={exportJSON}>Экспорт JSON</button><button onClick={()=>importInput.current?.click()}>Импорт JSON</button>
       <button onClick={()=>{setChecked(true);setNotice(errors.length?`Найдено ошибок: ${errors.length}`:'Уровень корректен. Можно запускать.');}}>Проверить</button><button className="primary" onClick={()=>start(true)}>▶ Протестировать</button>
@@ -96,7 +105,7 @@ export function EditorApp(){
         <div className="library-help"><strong>Два вида связей</strong><p><i className="line gold" /> Выполнение: порядок шагов</p><p><i className="line blue" /> Данные: ссылки на объекты</p><small>Связи не перемещают предметы. Все действия выполняет игрок.</small></div>
       </aside>
       <section className="editor-workspace"><div className="workspace-tabs"><button className={tab==='graph'?'active':''} onClick={()=>setTab('graph')}>Граф сценария</button><button className={tab==='map'?'active':''} onClick={()=>setTab('map')}>Карта</button>{tab==='graph'&&<button onClick={()=>{void flow.current?.fitView({padding:.15,duration:250});}}>Показать все ноды</button>}<span>{tab==='graph'?`${level.nodes.length} нод · ${level.edges.length} связей · тяните за заголовок`:'Одна клетка — один объект'}</span></div>
-      {tab==='graph'?<GraphEditor key={`${level.id}:${graphRevision}`} level={level} selected={selected} focusNodeId={focusNodeId} setLevel={setLevel} setSelected={setSelected} onInit={setFlowInstance} onAdd={addNode} onNotice={setNotice} onEditStart={history.begin} onEditEnd={history.end} resetToken={undoRevision}/>
+      {tab==='graph'?<GraphEditor key={`${level.id}:${graphRevision}`} level={level} selected={selected} focusNodeId={focusNodeId} setLevel={setLevel} setSelected={setSelected} onInit={setFlowInstance} onAdd={addNode} recentTypes={recentTypes} onNotice={setNotice} onEditStart={history.begin} onEditEnd={history.end} resetToken={undoRevision}/>
 :<div className="map-host"><div><button onClick={()=>{setMapMode('objects');setMovingPoint(null);}}>Размещать объекты</button><button onClick={()=>{setMapMode('points');setMovingPoint(null);}}>Отмечать точки</button><button onClick={()=>{setMapMode('move');setMovingPoint(null);}}>Перенести точку</button><button onClick={()=>{const map=level.nodes.find(n=>n.type==='map');if(map)setSelected(map.id);else setNotice('Добавьте ноду «Карта».');}}>Настройки карты</button><span role="status">{mapMode==='objects'?'Выберите объект и разрешённую точку':mapMode==='points'?'Клик добавляет или снимает свободную точку':movingPoint?'Выберите новую свободную клетку':'Выберите свободную точку для переноса'}</span></div><Suspense fallback={<SceneLoading/>}><Workshop level={level} selected={selected} onCell={(x,y)=>{
         history.end();
         if(mapMode==='points'){if(!level.nodes.some(n=>n.type==='map')){setNotice('Добавьте ноду «Карта».');return;}mapChange(togglePoint(level,x,y));return;}

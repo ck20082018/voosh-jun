@@ -254,7 +254,7 @@ test('editor mouse controls: left pans; right marquee selects at transformed coo
  const {GraphEditor}=await import('../src/GraphEditor');const {exampleLevel}=await import('../src/level');const {useState}=await import('react');
  type Instance=import('@xyflow/react').ReactFlowInstance<import('../src/editorFlow').EditorNode,import('@xyflow/react').Edge>;
  let flow:Instance|null=null;const init=(value:Instance|null)=>{flow=value;};const original=exampleLevel();
- function Harness(){const [level,setLevel]=useState(original),[selected,setSelected]=useState<string|null>(null);return createElement(GraphEditor,{level,selected,focusNodeId:null,setLevel,setSelected,onInit:init,onAdd:()=>{},onNotice:()=>{}});}
+ function Harness(){const [level,setLevel]=useState(original),[selected,setSelected]=useState<string|null>(null);return createElement(GraphEditor,{level,selected,focusNodeId:null,setLevel,setSelected,onInit:init,onAdd:()=>({ok:true as const}),recentTypes:[],onNotice:()=>{}});}
  const view=render(createElement(Harness));await settle();assert.ok(flow);const api=flow as Instance;
  await act(async()=>{await api.setViewport({x:80,y:60,zoom:.75});});await settle();
  const pane=view.container.querySelector('.react-flow__pane')!;const before=api.getViewport(),positions=api.getNodes().map(n=>({id:n.id,position:n.position}));
@@ -307,4 +307,47 @@ test('editor undo: clicking an action while a field remains focused records a se
 
 test('editor undo: a created connection is removed by one shortcut and its pending ports clear',async()=>{
  const {welcomeLevel}=await import('../src/level');const level=welcomeLevel();level.edges=[];localStorage.setItem('factory-level-v4',JSON.stringify(level));const view=render(createElement(App));await settle();fireEvent.click(view.getByRole('button',{name:'Выход Далее: Начало уровня'}));fireEvent.click(view.getByRole('button',{name:'Вход Выполнение: Вступление'}));await settle();assert.equal(view.container.querySelectorAll('.react-flow__edge').length,1);fireEvent.click(view.getByRole('button',{name:'Выход Далее: Вступление'}));fireEvent.keyDown(document,{key:'z',code:'KeyZ',ctrlKey:true});await settle();assert.equal(view.container.querySelectorAll('.react-flow__edge').length,0);assert.equal(view.queryByRole('button',{name:'Отменить соединение'}),null);assert.equal((view.getByRole('button',{name:'Отменить'}) as HTMLButtonElement).disabled,true);
+});
+
+test('node search: background filtering excludes nodes, groups headings, connections and controls',async()=>{
+  const {isNodeSearchBackground}=await import('../src/NodeSearchMenu');
+  const host=document.createElement('div');host.innerHTML='<div class="react-flow__pane"><div class="react-flow__node react-flow__node-factory"><span class="content"></span></div><div class="react-flow__node react-flow__node-frame"><div class="node-group-frame"></div><div class="group-heading"></div></div><div class="react-flow__edge"><svg><path></path></svg></div><div class="react-flow__minimap"></div><div class="react-flow__panel"><span></span></div><div class="react-flow__resize-control"></div><div class="react-flow__handle"></div><input/><button></button><div contenteditable="true"></div></div>';
+  assert.ok(isNodeSearchBackground(host.querySelector('.react-flow__pane')!));assert.ok(isNodeSearchBackground(host.querySelector('.node-group-frame')!));
+  for(const selector of ['.content','.group-heading','path','.react-flow__minimap','.react-flow__panel span','.react-flow__resize-control','.react-flow__handle','input','button','[contenteditable]'])assert.equal(isNodeSearchBackground(host.querySelector(selector)!),false,selector);
+});
+test('node search: double click, keyboard add, duplicate events, one undo/redo, separate recents and outside close',async()=>{
+  const view=render(createElement(App));await settle();fireEvent.click(view.getByRole('button',{name:'Новый уровень'}));await settle();
+  const pane=view.container.querySelector('.react-flow__pane')!;
+  fireEvent.doubleClick(pane,{button:2,clientX:800,clientY:500});assert.equal(view.queryByRole('dialog',{name:'Найти ноду'}),null);
+  const transform=view.container.querySelector<HTMLElement>('.react-flow__viewport')!.style.transform;
+  fireEvent.doubleClick(pane,{button:0,clientX:800,clientY:500});await settle();
+  const input=view.getByRole('combobox',{name:'Название, назначение или тип'});assert.equal(document.activeElement,input);
+  assert.equal(view.container.querySelector<HTMLElement>('.react-flow__viewport')!.style.transform,transform,'double click never zooms');
+  fireEvent.change(input,{target:{value:'  ФРЕЗА  '}});fireEvent.keyDown(input,{key:'ArrowDown'});fireEvent.keyDown(input,{key:'ArrowUp'});fireEvent.keyDown(input,{key:'Delete'});
+  fireEvent.keyDown(input,{key:'Enter'});fireEvent.keyDown(input,{key:'Enter'});await settle();
+  assert.equal(view.queryByRole('dialog',{name:'Найти ноду'}),null);assert.equal(view.container.querySelectorAll('.react-flow__node-factory').length,1);
+  fireEvent.click(view.getByRole('button',{name:'Сохранить'}));
+  const added=JSON.parse(localStorage.getItem('factory-level-v4')!);assert.equal(added.nodes[0].type,'tool');
+  const [tx,ty,z]=transform.match(/translate\(([-\d.]+)px,\s*([-\d.]+)px\)\s*scale\(([-\d.]+)\)/)!.slice(1).map(Number);
+  assert.deepEqual(added.nodes[0].position,{x:(800-220-tx)/z,y:(500-160-ty)/z});
+  assert.ok(view.container.querySelector('.properties')!.textContent!.includes(added.nodes[0].id));
+  fireEvent.click(view.getByRole('button',{name:'Отменить'}));await settle();assert.equal(view.container.querySelectorAll('.react-flow__node-factory').length,0);
+  fireEvent.click(view.getByRole('button',{name:'Повторить'}));await settle();fireEvent.click(view.getByRole('button',{name:'Сохранить'}));assert.deepEqual(JSON.parse(localStorage.getItem('factory-level-v4')!).nodes,added.nodes);
+  fireEvent.click(view.getByRole('button',{name:'Найти ноду'}));await settle();assert.ok(view.getByRole('listbox',{name:'Типы нод'}).textContent!.includes('Инструмент'));
+  fireEvent.change(view.getByRole('combobox',{name:'Название, назначение или тип'}),{target:{value:'никогда-не-найти'}});assert.ok(view.getByText('Ничего не найдено.',{exact:false}));
+  fireEvent.click(view.getByRole('button',{name:'Очистить запрос'}));fireEvent.keyDown(view.getByRole('combobox',{name:'Название, назначение или тип'}),{key:'Escape'});await settle();
+  assert.equal(view.queryByRole('dialog'),null);
+  fireEvent.click(view.getByRole('button',{name:'Найти ноду'}));await settle();fireEvent.mouseDown(view.getByLabelText('Название уровня'));await settle();assert.equal(view.queryByRole('dialog'),null);
+  assert.equal('query' in added,false);assert.deepEqual(JSON.parse(localStorage.getItem('factory-editor-recent-node-types-v1')!),['tool']);
+});
+test('node search: existing map restriction keeps search open, offers navigation and does not add history',async()=>{
+  const view=render(createElement(App));await settle();
+  const before=view.container.querySelectorAll('.react-flow__node').length;
+  fireEvent.doubleClick(view.container.querySelector('.node-heading')!,{button:0});assert.equal(view.queryByRole('dialog'),null);
+  fireEvent.click(view.getByRole('button',{name:'Найти ноду'}));await settle();
+  const input=view.getByRole('combobox',{name:'Название, назначение или тип'});fireEvent.change(input,{target:{value:'карта'}});fireEvent.keyDown(input,{key:'Enter'});await settle();
+  assert.ok(view.getByRole('alert').textContent!.includes('только одна'));assert.equal(view.container.querySelectorAll('.react-flow__node').length,before);
+  assert.equal(view.getByRole('button',{name:'Отменить'}).hasAttribute('disabled'),true);
+  assert.equal(localStorage.getItem('factory-editor-recent-node-types-v1'),null);
+  fireEvent.click(view.getByRole('button',{name:'Перейти к существующей ноде'}));await settle();assert.equal(view.queryByRole('dialog'),null);assert.ok(view.container.querySelector('.properties')!.textContent!.includes('Карта'));
 });
