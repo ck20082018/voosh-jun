@@ -1,3 +1,4 @@
+import { applyTurningGeometry, validateGeometry, migrateLegacyProfile, sameGeometry, type TurningGeometry, type TurningSetup, type TurningOperation, type GeometryResult } from './turningGeometry';
 import type { OperationSpec, Params, Section } from './level';
 export type Dimensions = {
     shape: 'cylinder';
@@ -15,6 +16,7 @@ export type Blank = Dimensions & {
     material: string;
 };
 export type Part = Dimensions & {
+    geometry?: TurningGeometry;
     blankId: string;
     material: string;
     sections: Section[];
@@ -24,6 +26,7 @@ export type Requirements = Dimensions & {
     id: string;
     name: string;
     material: string;
+    geometry?: TurningGeometry;
     sections: Section[];
 };
 // Millimetres: absolute tolerance 0.000001 mm plus relative 1e-9 for arithmetic rounding.
@@ -37,6 +40,12 @@ export function sameOperations(actual: readonly OperationSpec[], expected: reado
 export function applyOperation(blank: Blank, previous: Part | null, op: OperationSpec): Part {
     const base: Part = previous ? structuredClone(previous) : { ...(blank.shape === 'cylinder' ? { shape: 'cylinder' as const, diameter: blank.diameter, length: blank.length } : { shape: 'block' as const, length: blank.length, width: blank.width, height: blank.height }), blankId: blank.id, material: blank.material, sections: [], operationIds: [] };
     if (op.kind === 'turning' && base.shape === 'cylinder') {
+        if (!Number.isFinite(op.diameter) || op.diameter <= 0 || !Number.isFinite(op.length) || op.length <= 0 || blank.shape !== 'cylinder' || op.diameter > blank.diameter)
+            throw new Error('Точение требует положительных размеров и не может увеличивать исходный диаметр.');
+        if (base.geometry) {
+            const legacy = migrateLegacyProfile(base.diameter, base.length, base.sections);
+            if (!legacy.ok || !sameGeometry(legacy.value, base.geometry)) throw new Error('Для поверхностного профиля используйте applyTurningOperation, а не старую операцию добавления участка.');
+        }
         base.sections.push({ diameter: op.diameter, length: op.length });
         if (near(base.sections.reduce((sum, s) => sum + s.length, 0), base.length))
             base.diameter = Math.max(...base.sections.map(s => s.diameter));
@@ -45,11 +54,18 @@ export function applyOperation(blank: Blank, previous: Part | null, op: Operatio
         base.height -= op.depth;
     else
         throw new Error('Операция несовместима с заготовкой.');
+    if (base.shape === 'cylinder') {
+        const migrated = migrateLegacyProfile(base.diameter, base.length, base.sections);
+        if (!migrated.ok) throw new Error(migrated.error.message);
+        base.geometry = migrated.value;
+    }
     base.operationIds.push(op.id);
     return base;
 }
 export function expectedResult(blank: Blank, ops: readonly OperationSpec[]): Part { return ops.reduce<Part | null>((p, o) => applyOperation(blank, p, o), null)!; }
-export function matches(part: Part | null, expected: Requirements): boolean { return !!part && part.material === expected.material && sameDimensions(part, expected) && (expected.shape === 'cylinder' && expected.sections.length === 0 ? part.sections.every(s => near(s.diameter, expected.diameter)) : part.sections.length === expected.sections.length && part.sections.every((s, i) => near(s.diameter, expected.sections[i].diameter) && near(s.length, expected.sections[i].length))); }
+export function matches(part: Part | null, expected: Requirements): boolean {
+    return matchesFreeResult(part, expected);
+}
 export function dimensionText(d: Dimensions): string { return d.shape === 'cylinder' ? `Ø${d.diameter} × ${d.length} мм` : `${d.length} × ${d.width} × ${d.height} мм`; }
 
 export interface Configuration {
@@ -76,8 +92,37 @@ export function cylinderProfile(part:Dimensions & {sections:readonly Section[]})
  }return out;
 }
 export function matchesFreeResult(part:Part|null,expected:Requirements):boolean{
- if(!part||part.material!==expected.material||!sameDimensions(part,expected))return false;
- if(part.shape==='block')return true;
- const actual=cylinderProfile(part),wanted=cylinderProfile(expected);
- return actual.length===wanted.length&&actual.every((s,i)=>near(s.diameter,wanted[i].diameter)&&near(s.length,wanted[i].length));
+ if(!part||part.material!==expected.material||part.shape!==expected.shape)return false;
+ if(part.shape==='block')return sameDimensions(part,expected);
+ if(expected.shape!=='cylinder')return false;
+ const actual=geometryOf(part),wanted=geometryOf(expected);
+ return actual.ok&&wanted.ok&&sameGeometry(actual.value,wanted.value);
+}
+
+/** Shared read model for drawings and visualization; no DOM, no projection units. */
+export function geometryOf(part: Dimensions & {sections: readonly Section[]; geometry?: TurningGeometry}): GeometryResult<TurningGeometry> {
+ if(part.shape!=='cylinder')return {ok:false,error:{code:'invalid-geometry',message:'Прямоугольная деталь не имеет осесимметричного профиля.'}};
+ return part.geometry ? validateGeometry(part.geometry) : migrateLegacyProfile(part.diameter,part.length,part.sections);
+}
+
+/** Preview and manufacture call the same atomic function. Identity and material are retained. */
+export function applyTurningOperation(part: Part, setup: TurningSetup, operation: TurningOperation, operationId: string): GeometryResult<Part> {
+ const before=geometryOf(part); if(!before.ok)return before;
+ const result=applyTurningGeometry(before.value,setup,operation); if(!result.ok)return result;
+ const geometry=result.value;
+ return {ok:true,value:{...structuredClone(part),length:geometry.length,geometry,
+   operationIds:[...part.operationIds,operationId]}};
+}
+
+/** Atomic route evaluation for preview and execution adapters: failure exposes no intermediate part. */
+export function applyTurningRoute(part: Part, setup: TurningSetup, operations: readonly {id:string;operation:TurningOperation}[]): GeometryResult<Part> {
+ const initial=geometryOf(part);if(!initial.ok)return initial;
+ const accessible=applyTurningGeometry(initial.value,setup,{kind:'face',length:initial.value.length});if(!accessible.ok)return accessible;
+ let current=structuredClone(part);
+ for(const step of operations){
+  const next=applyTurningOperation(current,setup,step.operation,step.id);
+  if(!next.ok)return next;
+  current=next.value;
+ }
+ return {ok:true,value:current};
 }
