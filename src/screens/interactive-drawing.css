@@ -1,0 +1,22 @@
+.interactive-drawing { margin:0; padding:14px; border:1px solid #9caebe; border-radius:10px; background:#eef2f7; color:#203149; min-width:0; }
+.interactive-drawing figcaption { display:flex; flex-wrap:wrap; gap:8px 18px; margin-bottom:12px; }
+.interactive-drawing figcaption span { font-size:12px; }
+.idraw-toolbar { display:flex; flex-wrap:wrap; align-items:center; gap:6px; }
+.interactive-drawing button { font:inherit; color:#203149; background:#f8fafc; border:1px solid #7890a4; border-radius:6px; padding:7px 10px; cursor:pointer; min-height:36px; }
+.interactive-drawing button[aria-pressed=true] { border:2px solid #814c12; background:#fff0cb; }
+.interactive-drawing button:focus-visible { outline:3px solid #203149; outline-offset:2px; }
+.interactive-drawing button:disabled { opacity:.45; cursor:default; }
+.idraw-status { font-size:13px; margin:10px 0; }
+.idraw-canvas { display:block; width:100%; height:auto; max-height:460px; background:#f7f8f9; border:1px solid #c3cdd7; border-radius:6px; }
+.idraw-canvas text { fill:#203149; font-family:var(--font-text,system-ui); font-size:13px; }
+.idraw-dimensions { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:6px; margin-top:12px; }
+.idraw-dimensions button { text-align:left; }
+.idraw-dimensions small { display:block; font-size:12px; }
+.idraw-dimensions [data-mismatch=true] { border-style:dashed; border-color:#a84228; }
+.idraw-comparison { margin-top:12px; border-top:1px solid #9caebe; }
+.idraw-comparison li { margin:8px 0; }
+.idraw-note { font-size:12px; margin-bottom:0; }
+@media(max-width:500px){.idraw-dimensions{grid-template-columns:minmax(0,1fr)}.interactive-drawing{padding:10px}.idraw-canvas text{font-size:15px}}
+
+.interactive-drawing .idraw-toolbar label { display:flex; align-items:center; gap:6px; flex:0 1 auto; }
+.interactive-drawing .idraw-toolbar input[type=checkbox] { width:16px; height:16px; min-height:0; padding:0; margin:0; flex:none; }
